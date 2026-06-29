@@ -29,7 +29,7 @@ public class CameraSensitivityMenu : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
     {
-        if (FindFirstObjectByType<CameraSensitivityMenu>() != null)
+        if (FindAnyObjectByType<CameraSensitivityMenu>() != null)
         {
             return;
         }
@@ -65,12 +65,12 @@ public class CameraSensitivityMenu : MonoBehaviour
     {
         if (_controller == null)
         {
-            _controller = FindFirstObjectByType<ThirdPersonController>();
+            _controller = FindAnyObjectByType<ThirdPersonController>();
         }
 
         if (_inputs == null)
         {
-            _inputs = FindFirstObjectByType<StarterAssetsInputs>();
+            _inputs = FindAnyObjectByType<StarterAssetsInputs>();
         }
 
         if (_controller == null || _controller == _appliedController)
@@ -244,7 +244,7 @@ public class CameraSensitivityMenu : MonoBehaviour
 
     private void EnsureEventSystem()
     {
-        if (FindFirstObjectByType<EventSystem>() != null)
+        if (FindAnyObjectByType<EventSystem>() != null)
         {
             return;
         }

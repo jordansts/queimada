@@ -120,8 +120,8 @@ Dependencias principais:
 
 Pontos de atencao:
 
-- hoje usa reflection para resetar `_verticalVelocity` do `ThirdPersonController`;
-- isso e um ponto fragil e deve ser tratado como debito tecnico.
+- ainda e um ponto central de estado compartilhado e deve ser alterado com cuidado;
+- o respawn agora usa API explicita do `ThirdPersonController` para reset de movimento, em vez de reflection.
 
 ### `Assets/SourceFiles/Scripts/ArenaKnockbackMotor.cs`
 
@@ -156,7 +156,8 @@ Pontos de atencao:
 
 - bastante logica num unico script;
 - risco de regressao comportamental alto;
-- existe warning atual de campo nao usado (`preferredRange`).
+- existe warning atual de campo nao usado (`preferredRange`);
+- esse warning e pequeno, mas indica inconsistencia entre tuning exposto no Inspector e logica real usada pela IA.
 
 ## Bola e projeteis
 
@@ -236,4 +237,3 @@ Responsabilidade:
 - O minigame atual e fortemente orientado por runtime setup em vez de prefabs dedicados ja prontos para combate.
 - `MiniGameManager` e `ThirdPersonController` sao os dois arquivos mais sensiveis para alteracoes.
 - `ArenaCombatant` ainda tem um ponto fragil de reflection e deve ser tratado como inconsistencia estrutural.
-

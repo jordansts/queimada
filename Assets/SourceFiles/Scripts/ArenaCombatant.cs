@@ -103,7 +103,7 @@ public class ArenaCombatant : MonoBehaviour
         }
 
         knockbackMotor?.ResetVelocity();
-        ResetVerticalVelocity();
+        thirdPersonController?.ResetMotionState();
 
         if (thirdPersonController != null)
         {
@@ -117,22 +117,6 @@ public class ArenaCombatant : MonoBehaviour
     public void RestoreFullHealth()
     {
         CurrentHealth = maxHealth;
-    }
-
-    private void ResetVerticalVelocity()
-    {
-        if (thirdPersonController == null)
-        {
-            return;
-        }
-
-        var verticalVelocityField = typeof(ThirdPersonController).GetField("_verticalVelocity",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-        if (verticalVelocityField != null)
-        {
-            verticalVelocityField.SetValue(thirdPersonController, 0f);
-        }
     }
 
     private void EnsureHeldBallVisual()

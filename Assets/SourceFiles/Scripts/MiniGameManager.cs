@@ -9,6 +9,11 @@ using UnityEditor;
 
 public class MiniGameManager : MonoBehaviour
 {
+    private const string ArenaRootName = "Arena";
+    private const string PlayFieldRootName = "PlayField";
+    private const string PlayerSceneRootName = "PlayerRobotScene";
+    private const string BotSceneRootName = "AIRobotScene";
+
     public static MiniGameManager Instance { get; private set; }
 
     [SerializeField] private float combatantGroundClearance = 0.16f;
@@ -167,8 +172,8 @@ public class MiniGameManager : MonoBehaviour
         playerObject = null;
         botObject = null;
 
-        GameObject namedPlayerRoot = FindLoadedSceneObject("PlayerRobotScene");
-        GameObject namedBotRoot = FindLoadedSceneObject("AIRobotScene");
+        GameObject namedPlayerRoot = FindLoadedSceneObject(PlayerSceneRootName);
+        GameObject namedBotRoot = FindLoadedSceneObject(BotSceneRootName);
         if (namedPlayerRoot != null && namedBotRoot != null)
         {
             playerObject = GetActorRoot(namedPlayerRoot);
@@ -176,9 +181,7 @@ public class MiniGameManager : MonoBehaviour
             return playerObject != null && botObject != null && playerObject != botObject;
         }
 
-        CharacterController[] controllers = FindObjectsByType<CharacterController>(
-            FindObjectsInactive.Include,
-            FindObjectsSortMode.None);
+        CharacterController[] controllers = FindObjectsByType<CharacterController>(FindObjectsInactive.Include);
 
         if (controllers == null || controllers.Length == 0)
         {
@@ -500,7 +503,7 @@ public class MiniGameManager : MonoBehaviour
     {
         Light fallbackDirectional = null;
 
-        foreach (Light lightComponent in FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        foreach (Light lightComponent in FindObjectsByType<Light>(FindObjectsInactive.Exclude))
         {
             if (lightComponent == null)
             {
@@ -990,7 +993,7 @@ public class MiniGameManager : MonoBehaviour
             return;
         }
 
-        GameObject arenaObject = GameObject.Find("Arena");
+        GameObject arenaObject = GameObject.Find(ArenaRootName);
         arenaRoot = arenaObject != null ? arenaObject.transform : null;
     }
 
@@ -1001,7 +1004,7 @@ public class MiniGameManager : MonoBehaviour
             return;
         }
 
-        GameObject playFieldObject = GameObject.Find("PlayField");
+        GameObject playFieldObject = GameObject.Find(PlayFieldRootName);
         playFieldRoot = playFieldObject != null ? playFieldObject.transform : null;
     }
 

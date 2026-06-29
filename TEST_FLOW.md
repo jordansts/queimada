@@ -77,6 +77,13 @@ Sempre verificar no Console:
 - null references;
 - mensagens suspeitas de camera, input, prefab ou material.
 
+## Build / warnings atuais
+
+- O estado esperado atual de build e:
+  - sem erros;
+  - pode existir 1 warning conhecido em `ArenaBotController` sobre `preferredRange` nao usado.
+- Se aparecer warning novo fora disso, tratar como regressao ou novo debito tecnico a revisar.
+
 ## Quando a mudanca for visual
 
 Validar tambem:
@@ -92,4 +99,3 @@ Validar tambem:
 - recompilacao sem erros;
 - warnings novos introduzidos;
 - se a mudanca mexeu em script central (`MiniGameManager`, `ThirdPersonController`, `ArenaCombatant`, `ArenaRuntimeRig`), fazer o checklist completo.
-

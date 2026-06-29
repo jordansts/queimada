@@ -68,7 +68,7 @@ public class ArenaBallPickup : MonoBehaviour
         ArenaCombatant bestCombatant = null;
         float bestDistance = float.MaxValue;
 
-        ArenaCombatant[] combatants = FindObjectsByType<ArenaCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        ArenaCombatant[] combatants = FindObjectsByType<ArenaCombatant>(FindObjectsInactive.Exclude);
         foreach (ArenaCombatant combatant in combatants)
         {
             if (combatant == null || combatant.HasBall)

@@ -64,7 +64,7 @@ public class ArenaRuntimeRig : MonoBehaviour
             return;
         }
 
-        foreach (Camera cameraComponent in FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (Camera cameraComponent in FindObjectsByType<Camera>(FindObjectsInactive.Include))
         {
             if (cameraComponent == null || cameraComponent.transform.IsChildOf(sceneRoot))
             {
@@ -97,7 +97,7 @@ public class ArenaRuntimeRig : MonoBehaviour
             primaryListener = sceneRoot.GetComponentInChildren<AudioListener>(true);
         }
 
-        foreach (AudioListener listener in FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (AudioListener listener in FindObjectsByType<AudioListener>(FindObjectsInactive.Include))
         {
             if (listener == null)
             {

@@ -536,6 +536,18 @@ public bool IsRespawning { get; set; } = false;
     Debug.Log($"Camera Yaw reset to {targetYaw} degrees.");
 }
 
+        public void ResetMotionState()
+        {
+            _verticalVelocity = 0f;
+            _jumpTimeoutDelta = JumpTimeout;
+            _fallTimeoutDelta = FallTimeout;
+            _rollTimer = 0f;
+            _rollCooldownDelta = 0f;
+            _doubleJumpPoseTimer = 0f;
+            _hasDoubleJumpAvailable = true;
+            IsBlocking = false;
+        }
+
         private float GetCameraBasisYaw()
         {
             if (CinemachineCameraTarget != null)
