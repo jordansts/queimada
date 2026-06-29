@@ -312,7 +312,6 @@ public class MiniGameManager : MonoBehaviour
 
         ArenaCombatant combatant = PrepareCombatant(actorRoot, "Player", true, spawnPosition, spawnRotation);
         GetOrAddThrowClipPlayer(actorRoot).Initialize(actorRoot.transform);
-        GetOrAddComponent<ArenaPlayerActionAnimator>(actorRoot);
         GetOrAddComponent<ArenaPlayerShooter>(actorRoot).Initialize(combatant);
 
         return combatant;

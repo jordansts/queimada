@@ -41,6 +41,7 @@ public class ArenaBotController : MonoBehaviour
     [SerializeField] private float looseBallStopRadius = 1.05f;
     [SerializeField] private float looseBallPlayerAvoidanceRadius = 1.7f;
     [SerializeField] private float targetPressureRange = 6.8f;
+    [SerializeField] private float animationBlendRate = 10f;
 
     private ArenaCombatant owner;
     private ArenaThrowClipPlayer throwClipPlayer;
@@ -52,6 +53,10 @@ public class ArenaBotController : MonoBehaviour
     private float orbitSwapTimer;
     private int speedHash;
     private int motionSpeedHash;
+    private int moveXHash;
+    private int moveYHash;
+    private float moveXValue;
+    private float moveYValue;
     private Vector3 lastTargetPosition;
     private Vector3 targetVelocity;
     private BotState currentState;
@@ -80,6 +85,8 @@ public class ArenaBotController : MonoBehaviour
         orbitSwapTimer = Random.Range(orbitSwapIntervalMin, orbitSwapIntervalMax);
         speedHash = Animator.StringToHash("Speed");
         motionSpeedHash = Animator.StringToHash("MotionSpeed");
+        moveXHash = Animator.StringToHash("MoveX");
+        moveYHash = Animator.StringToHash("MoveY");
     }
 
     private void Update()
@@ -266,8 +273,7 @@ public class ArenaBotController : MonoBehaviour
         switch (state)
         {
             case BotState.Recover:
-                orbitDirection *= -1f;
-                return edgeRecovery + strafeDirection * 0.45f + targetSeparation * 0.9f;
+                return edgeRecovery - strafeDirection * 0.45f + targetSeparation * 0.9f;
             case BotState.Retreat:
                 return -desiredDirection * 1.05f + strafeDirection * 0.55f + edgeRecovery * 0.6f;
             case BotState.Finish:
@@ -442,8 +448,18 @@ public class ArenaBotController : MonoBehaviour
         {
             Vector3 planarVelocity = Vector3.ProjectOnPlane(controller.velocity, Vector3.up);
             float normalizedMotion = moveSpeedMultiplier > 0.001f ? Mathf.Clamp01(planarVelocity.magnitude / moveSpeedMultiplier) : 0f;
+            Vector3 localMoveDirection = transform.InverseTransformDirection(Vector3.ProjectOnPlane(moveDirection, Vector3.up));
+            float moveTier = normalizedMotion > 0.85f ? 2f : 1f;
+            float targetMoveX = Mathf.Clamp(localMoveDirection.x, -1f, 1f) * moveTier;
+            float targetMoveY = Mathf.Clamp(localMoveDirection.z, -1f, 1f) * moveTier;
+
+            moveXValue = Mathf.Lerp(moveXValue, targetMoveX, Time.deltaTime * animationBlendRate);
+            moveYValue = Mathf.Lerp(moveYValue, targetMoveY, Time.deltaTime * animationBlendRate);
+
             animator.SetFloat(speedHash, planarVelocity.magnitude);
             animator.SetFloat(motionSpeedHash, normalizedMotion);
+            animator.SetFloat(moveXHash, moveXValue);
+            animator.SetFloat(moveYHash, moveYValue);
         }
     }
 

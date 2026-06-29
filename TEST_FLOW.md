@@ -19,8 +19,15 @@
 1. Mover com `WASD`.
 2. Girar camera com mouse.
 3. Confirmar que a camera segue o comportamento esperado de eixo Y.
-4. Abrir menu com `Esc`.
-5. Testar:
+4. Confirmar locomocao diagonal:
+   - `W + A`
+   - `W + D`
+   - `S + A`
+   - `S + D`
+5. Confirmar que o personagem nao patina lateralmente ao correr/andar em diagonal.
+6. Confirmar que a locomocao usa strafe real com os clips do `Human Basic Motions`.
+7. Abrir menu com `Esc`.
+8. Testar:
    - slider de sensibilidade;
    - toggle de inverter eixo Y;
    - cursor desbloqueando ao abrir;
@@ -82,6 +89,7 @@ Sempre verificar no Console:
 - O estado esperado atual de build e:
   - sem erros;
   - pode existir 1 warning conhecido em `ArenaBotController` sobre `preferredRange` nao usado.
+- Se o controller direcional ainda nao tiver sido gerado no Editor, executar `Tools/Arena/Install Player Directional Controller`.
 - Se aparecer warning novo fora disso, tratar como regressao ou novo debito tecnico a revisar.
 
 ## Quando a mudanca for visual

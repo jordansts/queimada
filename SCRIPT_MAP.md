@@ -22,7 +22,6 @@ Dependencias principais:
 - `ArenaPlayerShooter`
 - `ArenaBotController`
 - `ArenaThrowClipPlayer`
-- `ArenaPlayerActionAnimator`
 
 Pontos de atencao:
 
@@ -39,7 +38,8 @@ Responsabilidade:
 - movimento principal do personagem;
 - pulo e double jump;
 - block e roll;
-- rotacao do personagem;
+- rotacao do personagem alinhada a camera;
+- alimenta parametros de locomocao direcional no Animator (`MoveX` / `MoveY`);
 - rotacao da camera via `CinemachineCameraTarget`.
 
 Pontos de atencao:
@@ -87,6 +87,20 @@ Pontos de atencao:
 
 - qualquer erro aqui pode deformar o personagem visualmente;
 - deve sempre restaurar pose base antes de aplicar offsets.
+
+### `Assets/Editor/PlayerDirectionalControllerInstaller.cs`
+
+Responsabilidade:
+
+- gera/atualiza um controller proprio do player com locomocao 8-way usando o pack `Human Basic Motions`;
+- aplica clips masculinos de idle, walk, run e jump;
+- reatribui os prefabs `PlayerRobot` para esse controller novo.
+
+Pontos de atencao:
+
+- depende do asset `Assets/Kevin Iglesias/Human Animations`;
+- e um script de editor, nao de runtime;
+- foi criado para evitar acoplamento novo no controller original do Starter Assets.
 
 ### `Assets/SourceFiles/Scripts/CameraSensitivityMenu.cs`
 

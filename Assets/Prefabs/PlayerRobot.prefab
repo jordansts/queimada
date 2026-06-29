@@ -1373,7 +1373,6 @@ Transform:
   - {fileID: 414191329514085314}
   m_Father: {fileID: 7152401093164179880}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-
 --- !u!1 &4199005853134199443
 GameObject:
   m_ObjectHideFlags: 0
@@ -1834,7 +1833,7 @@ Animator:
   m_GameObject: {fileID: 5633379113638269974}
   m_Enabled: 1
   m_Avatar: {fileID: 9000000, guid: d9cd8eb4a074cd84ab2686c58bcf21d9, type: 3}
-  m_Controller: {fileID: 9100000, guid: 40db3173a05ae3242b1c182a09b0a183, type: 2}
+  m_Controller: {fileID: 9100000, guid: 0d7ab16156e84824f9a8917e0a7a56df, type: 2}
   m_CullingMode: 1
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
@@ -1921,6 +1920,7 @@ MonoBehaviour:
   CameraAngleOverride: 0
   LockCameraPosition: 0
   LookSensitivity: {x: 2.5, y: 2.5}
+  InvertLookY: 0
 --- !u!114 &1764945173950795790
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2938,7 +2938,7 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -2717395650310496025, guid: d9cd8eb4a074cd84ab2686c58bcf21d9, type: 3}
-      propertyPath: m_Materials.Array.data[0]
+      propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: e2040610130a73245aedc9fb9f8d9718, type: 2}
     - target: {fileID: 919132149155446097, guid: d9cd8eb4a074cd84ab2686c58bcf21d9, type: 3}

@@ -119,6 +119,8 @@ public bool IsRespawning { get; set; } = false;
         private float _rollTimer;
         private float _rollCooldownDelta;
         private float _doubleJumpPoseTimer;
+        private float _moveXBlend;
+        private float _moveYBlend;
 
         // animation IDs
         private int _animIDSpeed;
@@ -126,6 +128,8 @@ public bool IsRespawning { get; set; } = false;
         private int _animIDJump;
         private int _animIDFreeFall;
         private int _animIDMotionSpeed;
+        private int _animIDMoveX;
+        private int _animIDMoveY;
 
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
@@ -216,6 +220,8 @@ public bool IsRespawning { get; set; } = false;
             _animIDJump = Animator.StringToHash("Jump");
             _animIDFreeFall = Animator.StringToHash("FreeFall");
             _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+            _animIDMoveX = Animator.StringToHash("MoveX");
+            _animIDMoveY = Animator.StringToHash("MoveY");
         }
 
         private void GroundedCheck()
@@ -294,7 +300,9 @@ public bool IsRespawning { get; set; } = false;
             float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
 
             float speedOffset = 0.1f;
-            float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
+            float inputMagnitude = _input.move == Vector2.zero
+                ? 0f
+                : (_input.analogMovement ? _input.move.magnitude : 1f);
 
             // accelerate or decelerate to target speed
             if (currentHorizontalSpeed < targetSpeed - speedOffset ||
@@ -477,6 +485,12 @@ public bool IsRespawning { get; set; } = false;
             {
                 _animator.SetFloat(_animIDSpeed, useAnimationBlend ? _animationBlend : horizontalSpeed);
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
+                Vector2 moveInput = Vector2.ClampMagnitude(_input.move, 1f);
+                float locomotionTier = IsBlocking ? 0.5f : (_input.sprint ? 2f : 1f);
+                _moveXBlend = Mathf.Lerp(_moveXBlend, moveInput.x * locomotionTier, Time.deltaTime * SpeedChangeRate);
+                _moveYBlend = Mathf.Lerp(_moveYBlend, moveInput.y * locomotionTier, Time.deltaTime * SpeedChangeRate);
+                _animator.SetFloat(_animIDMoveX, _moveXBlend);
+                _animator.SetFloat(_animIDMoveY, _moveYBlend);
             }
         }
 
@@ -546,6 +560,8 @@ public bool IsRespawning { get; set; } = false;
             _doubleJumpPoseTimer = 0f;
             _hasDoubleJumpAvailable = true;
             IsBlocking = false;
+            _moveXBlend = 0f;
+            _moveYBlend = 0f;
         }
 
         private float GetCameraBasisYaw()
