@@ -254,7 +254,7 @@ public bool IsRespawning { get; set; } = false;
         float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
 
         _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier * LookSensitivity.x;
-        _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier * LookSensitivity.y;
+        _cinemachineTargetPitch -= _input.look.y * deltaTimeMultiplier * LookSensitivity.y;
     }
 
     _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);

@@ -82,17 +82,17 @@ public class ArenaThrowClipPlayer : MonoBehaviour
 
     private void BindBones()
     {
-        hips = FindFirstExistingChild("Hips", "Pelvis");
-        spine = FindFirstExistingChild("Spine", "Body", "Core");
-        chest = FindFirstExistingChild("Chest", "UpperChest", "Torso");
-        head = FindFirstExistingChild("Head");
-        rightShoulder = FindFirstExistingChild("Right_Shoulder", "RightShoulder");
-        rightUpperArm = FindFirstExistingChild("Right_UpperArm", "RightArm");
-        rightLowerArm = FindFirstExistingChild("Right_LowerArm", "RightForeArm", "RightForearm");
-        rightHand = FindFirstExistingChild("Right_Hand", "RightHand");
-        leftShoulder = FindFirstExistingChild("Left_Shoulder", "LeftShoulder");
-        leftUpperArm = FindFirstExistingChild("Left_UpperArm", "LeftArm");
-        leftLowerArm = FindFirstExistingChild("Left_LowerArm", "LeftForeArm", "LeftForearm");
+        hips = FindFirstExistingChild("Hips", "Pelvis", "B-hips");
+        spine = FindFirstExistingChild("Spine", "Body", "Core", "B-spine");
+        chest = FindFirstExistingChild("Chest", "UpperChest", "Torso", "B-chest");
+        head = FindFirstExistingChild("Head", "B-head");
+        rightShoulder = FindFirstExistingChild("Right_Shoulder", "RightShoulder", "B-shoulder.R");
+        rightUpperArm = FindFirstExistingChild("Right_UpperArm", "RightArm", "B-upperArm.R");
+        rightLowerArm = FindFirstExistingChild("Right_LowerArm", "RightForeArm", "RightForearm", "B-forearm.R");
+        rightHand = FindFirstExistingChild("Right_Hand", "RightHand", "B-hand.R");
+        leftShoulder = FindFirstExistingChild("Left_Shoulder", "LeftShoulder", "B-shoulder.L");
+        leftUpperArm = FindFirstExistingChild("Left_UpperArm", "LeftArm", "B-upperArm.L");
+        leftLowerArm = FindFirstExistingChild("Left_LowerArm", "LeftForeArm", "LeftForearm", "B-forearm.L");
     }
 
     private Transform FindFirstExistingChild(params string[] names)

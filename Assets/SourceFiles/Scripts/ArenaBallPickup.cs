@@ -65,13 +65,12 @@ public class ArenaBallPickup : MonoBehaviour
 
     private void TryClaimNearbyCombatant()
     {
-        Collider[] overlaps = Physics.OverlapSphere(transform.position, claimRadius, ~0, QueryTriggerInteraction.Ignore);
         ArenaCombatant bestCombatant = null;
         float bestDistance = float.MaxValue;
 
-        foreach (Collider overlap in overlaps)
+        ArenaCombatant[] combatants = FindObjectsByType<ArenaCombatant>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        foreach (ArenaCombatant combatant in combatants)
         {
-            ArenaCombatant combatant = overlap.GetComponentInParent<ArenaCombatant>();
             if (combatant == null || combatant.HasBall)
             {
                 continue;
@@ -80,6 +79,11 @@ public class ArenaBallPickup : MonoBehaviour
             float distance = Vector3.Distance(
                 Vector3.ProjectOnPlane(combatant.transform.position, Vector3.up),
                 Vector3.ProjectOnPlane(transform.position, Vector3.up));
+
+            if (distance > claimRadius)
+            {
+                continue;
+            }
 
             if (bestCombatant == null || distance < bestDistance - 0.01f)
             {

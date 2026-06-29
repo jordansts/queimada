@@ -185,7 +185,6 @@ public class ArenaCombatant : MonoBehaviour
         float safeX = Mathf.Abs(parentScale.x) > 0.0001f ? parentScale.x : 1f;
         float safeY = Mathf.Abs(parentScale.y) > 0.0001f ? parentScale.y : 1f;
         float safeZ = Mathf.Abs(parentScale.z) > 0.0001f ? parentScale.z : 1f;
-
         return new Vector3(scale / safeX, scale / safeY, scale / safeZ);
     }
 }

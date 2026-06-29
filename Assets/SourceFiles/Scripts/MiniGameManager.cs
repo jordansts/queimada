@@ -3,15 +3,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public class MiniGameManager : MonoBehaviour
 {
     public static MiniGameManager Instance { get; private set; }
-
-    private const string BasketBallPrefabPath = "MarpaStudio/Built-In/Prefabs/BasketBall";
 
     [SerializeField] private float combatantGroundClearance = 0.16f;
     [SerializeField] private float ballGroundClearance = 0.06f;
@@ -30,20 +25,19 @@ public class MiniGameManager : MonoBehaviour
 
     public ArenaCombatant PlayerCombatant { get; private set; }
     public ArenaCombatant BotCombatant { get; private set; }
-    public Transform CurrentLooseBallTransform => currentLooseBall != null ? currentLooseBall.transform : null;
+    public Transform CurrentLooseBallTransform => ballService != null ? ballService.CurrentLooseBallTransform : null;
     public float BallVisualScale => ballVisualScale;
 
     private readonly Vector3 playerArenaSpawn = new Vector3(-6.88f, 7.2f, -7.29f);
     private readonly Vector3 botArenaSpawn = new Vector3(7.41f, 6.78f, -2.91f);
     private readonly Color crosshairColor = new Color(0.35f, 0.95f, 1f, 0.95f);
     private bool scenePrepared;
-    private ArenaBallPickup currentLooseBall;
     private ArenaLayout arenaLayout;
     private Transform arenaRoot;
     private Transform playFieldRoot;
     private BoxCollider playFieldSurfaceCollider;
     private Transform boundaryRoot;
-    private GameObject basketBallPrefab;
+    private ArenaBallService ballService;
 
     private struct ArenaLayout
     {
@@ -76,6 +70,7 @@ public class MiniGameManager : MonoBehaviour
         }
 
         Instance = this;
+        ballService = GetOrAddComponent<ArenaBallService>(gameObject);
     }
 
     private void OnEnable()
@@ -117,11 +112,11 @@ public class MiniGameManager : MonoBehaviour
         CacheArenaRoot();
         CachePlayField();
         ExpandArenaHorizontally();
-        CacheBallPrefab();
         EnsurePlayFieldSurfaceCollider();
         RebuildPlayFieldBoundaries();
         EnsureArenaLighting();
         RefreshArenaLayout();
+        ballService.Configure(ResolveGroundPosition, ballVisualScale, ballVisualRadius, ballBobbingAmount, ballGroundClearance);
         RemoveCollectibles();
         SpawnCombatants();
         SpawnArenaBall(GetArenaBallSpawnPoint());
@@ -166,6 +161,15 @@ public class MiniGameManager : MonoBehaviour
     {
         playerObject = null;
         botObject = null;
+
+        GameObject namedPlayerRoot = FindLoadedSceneObject("PlayerRobotScene");
+        GameObject namedBotRoot = FindLoadedSceneObject("AIRobotScene");
+        if (namedPlayerRoot != null && namedBotRoot != null)
+        {
+            playerObject = GetActorRoot(namedPlayerRoot);
+            botObject = GetActorRoot(namedBotRoot);
+            return playerObject != null && botObject != null && playerObject != botObject;
+        }
 
         CharacterController[] controllers = FindObjectsByType<CharacterController>(
             FindObjectsInactive.Include,
@@ -287,17 +291,16 @@ public class MiniGameManager : MonoBehaviour
 
     private ArenaCombatant ConfigurePlayer(GameObject playerObject, Vector3 spawnPosition, Quaternion spawnRotation)
     {
-        playerObject.name = "PlayerRobot";
-        playerObject.tag = "Player";
+        GameObject sceneRoot = GetSceneInstanceRoot(playerObject);
+        sceneRoot.name = "PlayerRobot";
+        sceneRoot.tag = "Player";
 
-        GameObject actorRoot = GetActorRoot(playerObject);
+        GameObject actorRoot = GetActorRoot(sceneRoot);
         actorRoot.tag = "Player";
 
-        SetComponentEnabled<ThirdPersonController>(actorRoot, true);
-        SetComponentEnabled<StarterAssetsInputs>(actorRoot, true);
-        SetComponentEnabled<PlayerInput>(actorRoot, true);
         SetComponentEnabled<RespawnPlayer>(actorRoot, false);
         ConfigureGroundMask(actorRoot);
+        GetOrAddComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, true);
 
         ArenaCombatant combatant = PrepareCombatant(actorRoot, "Player", true, spawnPosition, spawnRotation);
         GetOrAddThrowClipPlayer(actorRoot).Initialize(actorRoot.transform);
@@ -309,19 +312,16 @@ public class MiniGameManager : MonoBehaviour
 
     private ArenaCombatant ConfigureBot(GameObject botObject, Vector3 spawnPosition, Quaternion spawnRotation)
     {
-        botObject.name = "AIRobot";
-        botObject.tag = "Untagged";
+        GameObject sceneRoot = GetSceneInstanceRoot(botObject);
+        sceneRoot.name = "AIRobot";
+        sceneRoot.tag = "Untagged";
 
-        GameObject actorRoot = GetActorRoot(botObject);
+        GameObject actorRoot = GetActorRoot(sceneRoot);
         actorRoot.tag = "Untagged";
 
-        SetComponentEnabled<ThirdPersonController>(actorRoot, false);
-        SetComponentEnabled<StarterAssetsInputs>(actorRoot, false);
-        SetComponentEnabled<PlayerInput>(actorRoot, false);
         SetComponentEnabled<RespawnPlayer>(actorRoot, false);
         ConfigureGroundMask(actorRoot);
-
-        DisableBotCameraRig(botObject.transform);
+        GetOrAddComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, false);
 
         ArenaCombatant combatant = PrepareCombatant(actorRoot, "AI Robot", false, spawnPosition, spawnRotation);
         GetOrAddThrowClipPlayer(actorRoot).Initialize(actorRoot.transform);
@@ -359,6 +359,14 @@ public class MiniGameManager : MonoBehaviour
         }
 
         Transform hand = FindChildRecursive(root, "Right_Hand");
+        if (hand == null)
+        {
+            hand = FindChildRecursive(root, "RightHand");
+        }
+        if (hand == null)
+        {
+            hand = FindChildRecursive(root, "B-hand.R");
+        }
         if (hand == null)
         {
             hand = root;
@@ -445,27 +453,6 @@ public class MiniGameManager : MonoBehaviour
         if (liftAmount > 0f)
         {
             actor.transform.position += Vector3.up * liftAmount;
-        }
-    }
-
-    private void DisableBotCameraRig(Transform root)
-    {
-        foreach (Camera cameraComponent in root.GetComponentsInChildren<Camera>(true))
-        {
-            cameraComponent.enabled = false;
-            cameraComponent.gameObject.tag = "Untagged";
-            cameraComponent.gameObject.SetActive(false);
-        }
-
-        foreach (AudioListener listener in root.GetComponentsInChildren<AudioListener>(true))
-        {
-            listener.enabled = false;
-        }
-
-        Transform followCamera = FindChildRecursive(root, "PlayerFollowCamera");
-        if (followCamera != null)
-        {
-            followCamera.gameObject.SetActive(false);
         }
     }
 
@@ -659,11 +646,7 @@ public class MiniGameManager : MonoBehaviour
             return;
         }
 
-        if (currentLooseBall != null)
-        {
-            Destroy(currentLooseBall.gameObject);
-            currentLooseBall = null;
-        }
+        ballService?.ClearLooseBall();
 
         if (BotCombatant != null && BotCombatant.HasBall)
         {
@@ -778,6 +761,31 @@ public class MiniGameManager : MonoBehaviour
         return instanceRoot;
     }
 
+    private static GameObject GetSceneInstanceRoot(GameObject instanceRoot)
+    {
+        Transform root = instanceRoot.transform.root;
+        return root != null ? root.gameObject : instanceRoot;
+    }
+
+    private static GameObject FindLoadedSceneObject(string objectName)
+    {
+        Scene activeScene = SceneManager.GetActiveScene();
+        if (!activeScene.IsValid() || !activeScene.isLoaded)
+        {
+            return null;
+        }
+
+        foreach (GameObject rootObject in activeScene.GetRootGameObjects())
+        {
+            if (rootObject != null && rootObject.name == objectName)
+            {
+                return rootObject;
+            }
+        }
+
+        return null;
+    }
+
     public static Transform FindChildRecursive(Transform parent, string childName)
     {
         if (parent.name == childName)
@@ -799,50 +807,17 @@ public class MiniGameManager : MonoBehaviour
 
     public void ClaimArenaBall(ArenaBallPickup pickup, ArenaCombatant combatant)
     {
-        if (pickup == null || combatant == null)
-        {
-            return;
-        }
-
-        if (currentLooseBall == pickup)
-        {
-            currentLooseBall = null;
-        }
-
-        combatant.GiveBall();
-        Destroy(pickup.gameObject);
+        ballService?.ClaimArenaBall(pickup, combatant);
     }
 
     public void RegisterLooseArenaBall(ArenaBallPickup pickup)
     {
-        if (pickup == null)
-        {
-            return;
-        }
-
-        if (currentLooseBall != null && currentLooseBall != pickup)
-        {
-            Destroy(currentLooseBall.gameObject);
-        }
-
-        currentLooseBall = pickup;
+        ballService?.RegisterLooseArenaBall(pickup);
     }
 
     public void SpawnArenaBall(Vector3 position, float pickupDelay = 0f)
     {
-        if (currentLooseBall != null)
-        {
-            Destroy(currentLooseBall.gameObject);
-            currentLooseBall = null;
-        }
-
-        Vector3 groundedPosition = ResolveGroundPosition(position);
-        GameObject ballObject = CreateArenaBallVisualInstance(true, "ArenaBallPickup");
-        float safeBallHeight = groundedPosition.y + ballVisualRadius + ballBobbingAmount + ballGroundClearance;
-        ballObject.transform.position = new Vector3(groundedPosition.x, safeBallHeight, groundedPosition.z);
-
-        currentLooseBall = ballObject.AddComponent<ArenaBallPickup>();
-        currentLooseBall.Initialize(ballObject.transform.position, pickupDelay, true);
+        ballService?.SpawnArenaBall(position, pickupDelay);
     }
 
     private Vector3 GetArenaBallSpawnPoint()
@@ -911,28 +886,6 @@ public class MiniGameManager : MonoBehaviour
 
         GameObject playFieldObject = GameObject.Find("PlayField");
         playFieldRoot = playFieldObject != null ? playFieldObject.transform : null;
-    }
-
-    private void CacheBallPrefab()
-    {
-        if (basketBallPrefab != null)
-        {
-            return;
-        }
-
-        basketBallPrefab = Resources.Load<GameObject>(BasketBallPrefabPath);
-        if (basketBallPrefab == null)
-        {
-            basketBallPrefab = Resources.Load<GameObject>("BasketBall");
-        }
-
-#if UNITY_EDITOR
-        if (basketBallPrefab == null)
-        {
-            basketBallPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                "Assets/MarpaStudio/Built-In/Prefabs/BasketBall.prefab");
-        }
-#endif
     }
 
     private void ExpandArenaHorizontally()
@@ -1108,45 +1061,9 @@ public class MiniGameManager : MonoBehaviour
 
     public GameObject CreateArenaBallVisualInstance(bool includePickupCollider, string objectName)
     {
-        GameObject ballObject;
-        if (basketBallPrefab != null)
-        {
-            ballObject = Instantiate(basketBallPrefab);
-            ballObject.name = objectName;
-            ballObject.transform.localScale = Vector3.one * ballVisualScale;
-
-            foreach (Collider existingCollider in ballObject.GetComponentsInChildren<Collider>(true))
-            {
-                Destroy(existingCollider);
-            }
-        }
-        else
-        {
-            ballObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            ballObject.name = objectName;
-            ballObject.transform.localScale = Vector3.one * ballVisualScale;
-
-            Renderer renderer = ballObject.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material.color = new Color(1f, 0.85f, 0.2f);
-            }
-        }
-
-        if (!includePickupCollider)
-        {
-            return ballObject;
-        }
-
-        SphereCollider pickupCollider = ballObject.GetComponent<SphereCollider>();
-        if (pickupCollider == null)
-        {
-            pickupCollider = ballObject.AddComponent<SphereCollider>();
-        }
-
-        pickupCollider.isTrigger = true;
-        pickupCollider.radius = 0.5f;
-        return ballObject;
+        return ballService != null
+            ? ballService.CreateArenaBallVisualInstance(includePickupCollider, objectName)
+            : null;
     }
 
 }

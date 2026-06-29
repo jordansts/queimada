@@ -194,4 +194,5 @@ public class ArenaProjectile : MonoBehaviour
         pickup.Initialize(position, 0f, false);
         MiniGameManager.Instance?.RegisterLooseArenaBall(pickup);
     }
+
 }

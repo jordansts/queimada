@@ -20,7 +20,7 @@ public class ArenaBotController : MonoBehaviour
     [SerializeField] private float engageRange = 11f;
     [SerializeField] private float personalSpaceRange = 1.75f;
     [SerializeField] private float fireCooldown = 0.75f;
-    [SerializeField] private float projectileSpeed = 28f;
+    [SerializeField] private float projectileSpeed = 24f;
     [SerializeField] private float damage = 22f;
     [SerializeField] private float knockbackForce = 120f;
     [SerializeField] private float orbitWeight = 1.15f;
@@ -37,13 +37,10 @@ public class ArenaBotController : MonoBehaviour
     [SerializeField] private float shotRange = 26f;
     [SerializeField] private float visionRange = 32f;
     [SerializeField] private float searchArrivalRadius = 1.35f;
-    [SerializeField] private float looseBallMoveSpeedMultiplier = 1.2f;
-    [SerializeField] private float defensiveStrafeSpeedMultiplier = 0.96f;
-    [SerializeField] private float defensiveRetreatRange = 6f;
-    [SerializeField] private float defensiveOrbitStartRange = 7.5f;
-    [SerializeField] private float defensiveOrbitWeight = 1.8f;
-    [SerializeField] private float minShotTravelTime = 0.18f;
-    [SerializeField] private float maxShotTravelTime = 0.48f;
+    [SerializeField] private float looseBallMoveSpeedMultiplier = 0.72f;
+    [SerializeField] private float looseBallStopRadius = 1.05f;
+    [SerializeField] private float looseBallPlayerAvoidanceRadius = 1.7f;
+    [SerializeField] private float targetPressureRange = 6.8f;
 
     private ArenaCombatant owner;
     private ArenaThrowClipPlayer throwClipPlayer;
@@ -65,6 +62,8 @@ public class ArenaBotController : MonoBehaviour
     private bool hasLineOfSight;
     private bool throwQueued;
     private float throwReleaseTimer;
+    private Vector3 queuedSpawnPosition;
+    private Vector3 queuedDirection;
     private Vector3 queuedAimPoint;
 
     public void Initialize(ArenaCombatant owner)
@@ -105,19 +104,7 @@ public class ArenaBotController : MonoBehaviour
     private void HandleLooseBallState(ArenaCombatant target)
     {
         Transform looseBall = MiniGameManager.Instance != null ? MiniGameManager.Instance.CurrentLooseBallTransform : null;
-        if (looseBall != null)
-        {
-            UpdateBallChase(target, looseBall);
-        }
-        else if (target.HasBall)
-        {
-            UpdateDefensiveMovement(target);
-        }
-        else
-        {
-            UpdateBallChase(target, null);
-        }
-
+        UpdateBallChase(target, looseBall);
         TickCooldown();
     }
 
@@ -147,6 +134,9 @@ public class ArenaBotController : MonoBehaviour
 
         Transform muzzle = owner.ThrowOrigin != null ? owner.ThrowOrigin : transform;
         Vector3 aimPoint = ResolveAimPoint(target);
+        Vector3 direction = (aimPoint - muzzle.position).normalized;
+        queuedSpawnPosition = muzzle.position + direction * 0.4f;
+        queuedDirection = direction;
         queuedAimPoint = aimPoint;
         throwReleaseTimer = throwClipPlayer != null ? throwClipPlayer.ReleaseDelay : 0f;
         throwQueued = true;
@@ -371,28 +361,12 @@ public class ArenaBotController : MonoBehaviour
             return;
         }
 
-        Transform muzzle = owner.ThrowOrigin != null ? owner.ThrowOrigin : transform;
-        float distance = Vector3.Distance(muzzle.position, queuedAimPoint);
-        float travelTime = Mathf.Clamp(distance / Mathf.Max(projectileSpeed, 0.01f), minShotTravelTime, maxShotTravelTime);
-        Vector3 launchVelocity = ArenaBallistics.CalculateLaunchVelocityForTravelTime(
-            muzzle.position,
-            queuedAimPoint,
-            Physics.gravity,
-            travelTime);
-
-        if (launchVelocity.sqrMagnitude <= 0.0001f)
-        {
-            Vector3 fallbackDirection = (queuedAimPoint - muzzle.position).normalized;
-            launchVelocity = (fallbackDirection.sqrMagnitude > 0.0001f ? fallbackDirection : transform.forward) * projectileSpeed;
-        }
-
-        Vector3 spawnDirection = launchVelocity.normalized;
         owner.RemoveBall();
         ArenaProjectileFactory.CreateProjectile(
             "BotProjectile",
             owner,
-            muzzle.position + spawnDirection * 0.4f,
-            launchVelocity,
+            queuedSpawnPosition,
+            queuedDirection * projectileSpeed,
             damage,
             knockbackForce);
     }
@@ -401,9 +375,42 @@ public class ArenaBotController : MonoBehaviour
     {
         Vector3 goalPosition = looseBall != null ? looseBall.position : target.transform.position;
         Vector3 flatToGoal = Vector3.ProjectOnPlane(goalPosition - transform.position, Vector3.up);
-        Vector3 desiredDirection = flatToGoal.sqrMagnitude > 0.0001f ? flatToGoal.normalized : transform.forward;
         Vector3 selfOffset = Vector3.ProjectOnPlane(transform.position, Vector3.up);
-        Vector3 moveDirection = desiredDirection;
+        Vector3 moveDirection = Vector3.zero;
+
+        if (looseBall != null)
+        {
+            float distanceToBall = flatToGoal.magnitude;
+            if (distanceToBall > looseBallStopRadius)
+            {
+                moveDirection += flatToGoal.normalized;
+            }
+
+            Vector3 flatFromTarget = Vector3.ProjectOnPlane(transform.position - target.transform.position, Vector3.up);
+            float distanceToTarget = flatFromTarget.magnitude;
+            if (distanceToTarget < looseBallPlayerAvoidanceRadius && flatFromTarget.sqrMagnitude > 0.0001f)
+            {
+                moveDirection += flatFromTarget.normalized * 1.35f;
+            }
+        }
+        else
+        {
+            Vector3 flatToTarget = Vector3.ProjectOnPlane(target.transform.position - transform.position, Vector3.up);
+            float distanceToTarget = flatToTarget.magnitude;
+            Vector3 desiredDirection = flatToTarget.sqrMagnitude > 0.0001f ? flatToTarget.normalized : transform.forward;
+            Vector3 strafeDirection = Vector3.Cross(Vector3.up, desiredDirection).normalized * orbitDirection;
+
+            if (distanceToTarget > targetPressureRange + 0.45f)
+            {
+                moveDirection += desiredDirection;
+            }
+            else if (distanceToTarget < targetPressureRange - 0.45f)
+            {
+                moveDirection -= desiredDirection;
+            }
+
+            moveDirection += strafeDirection * 0.85f;
+        }
 
         if (selfOffset.magnitude >= edgeRecoveryRadius)
         {
@@ -414,33 +421,6 @@ public class ArenaBotController : MonoBehaviour
         currentAimPoint = looseBall != null ? looseBall.position : target.transform.position + Vector3.up * aimTargetHeight;
         RotateTowardAimPoint();
         ApplyMovement(currentMoveDirection, moveSpeed * looseBallMoveSpeedMultiplier);
-    }
-
-    private void UpdateDefensiveMovement(ArenaCombatant target)
-    {
-        Vector3 flatToTarget = Vector3.ProjectOnPlane(target.transform.position - transform.position, Vector3.up);
-        float distance = flatToTarget.magnitude;
-        Vector3 desiredDirection = flatToTarget.sqrMagnitude > 0.0001f ? flatToTarget.normalized : transform.forward;
-        Vector3 strafeDirection = Vector3.Cross(Vector3.up, desiredDirection).normalized * orbitDirection;
-        Vector3 selfOffset = Vector3.ProjectOnPlane(transform.position, Vector3.up);
-        Vector3 edgeRecovery = selfOffset.sqrMagnitude > 0.0001f ? -selfOffset.normalized * edgeAvoidanceWeight : Vector3.zero;
-
-        UpdateOrbitDirection(distance);
-
-        Vector3 moveDirection = strafeDirection * defensiveOrbitWeight + edgeRecovery * 0.35f;
-        if (distance < defensiveRetreatRange)
-        {
-            moveDirection += -desiredDirection * 1.1f;
-        }
-        else if (distance < defensiveOrbitStartRange)
-        {
-            moveDirection += desiredDirection * 0.15f;
-        }
-
-        currentMoveDirection = Vector3.ClampMagnitude(moveDirection, 1f);
-        currentAimPoint = target.transform.position + Vector3.up * aimTargetHeight;
-        RotateTowardAimPoint();
-        ApplyMovement(currentMoveDirection, moveSpeed * defensiveStrafeSpeedMultiplier);
     }
 
     private void ApplyMovement(Vector3 moveDirection, float moveSpeedMultiplier)
@@ -460,8 +440,10 @@ public class ArenaBotController : MonoBehaviour
 
         if (animator != null)
         {
-            animator.SetFloat(speedHash, moveDirection.magnitude * moveSpeedMultiplier);
-            animator.SetFloat(motionSpeedHash, moveDirection.magnitude);
+            Vector3 planarVelocity = Vector3.ProjectOnPlane(controller.velocity, Vector3.up);
+            float normalizedMotion = moveSpeedMultiplier > 0.001f ? Mathf.Clamp01(planarVelocity.magnitude / moveSpeedMultiplier) : 0f;
+            animator.SetFloat(speedHash, planarVelocity.magnitude);
+            animator.SetFloat(motionSpeedHash, normalizedMotion);
         }
     }
 

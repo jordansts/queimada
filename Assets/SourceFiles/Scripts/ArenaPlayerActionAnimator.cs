@@ -63,20 +63,20 @@ public class ArenaPlayerActionAnimator : MonoBehaviour
 
     private void BindBones()
     {
-        hips = FindBone("Hips", "Pelvis");
-        spine = FindBone("Spine", "Body", "Core");
-        chest = FindBone("Chest", "UpperChest", "Torso");
-        head = FindBone("Head");
-        leftShoulder = FindBone("Left_Shoulder", "LeftShoulder");
-        leftUpperArm = FindBone("Left_UpperArm", "LeftArm");
-        leftLowerArm = FindBone("Left_LowerArm", "LeftForeArm", "LeftForearm");
-        rightShoulder = FindBone("Right_Shoulder", "RightShoulder");
-        rightUpperArm = FindBone("Right_UpperArm", "RightArm");
-        rightLowerArm = FindBone("Right_LowerArm", "RightForeArm", "RightForearm");
-        leftUpperLeg = FindBone("LeftLeg", "Left_UpperLeg", "LeftUpperLeg");
-        leftLowerLeg = FindBone("LeftKnee", "Left_LowerLeg", "LeftLowerLeg");
-        rightUpperLeg = FindBone("RightLeg", "Right_UpperLeg", "RightUpperLeg");
-        rightLowerLeg = FindBone("RightKnee", "Right_LowerLeg", "RightLowerLeg");
+        hips = FindBone("Hips", "Pelvis", "B-hips");
+        spine = FindBone("Spine", "Body", "Core", "B-spine");
+        chest = FindBone("Chest", "UpperChest", "Torso", "B-chest");
+        head = FindBone("Head", "B-head");
+        leftShoulder = FindBone("Left_Shoulder", "LeftShoulder", "B-shoulder.L");
+        leftUpperArm = FindBone("Left_UpperArm", "LeftArm", "B-upperArm.L");
+        leftLowerArm = FindBone("Left_LowerArm", "LeftForeArm", "LeftForearm", "B-forearm.L");
+        rightShoulder = FindBone("Right_Shoulder", "RightShoulder", "B-shoulder.R");
+        rightUpperArm = FindBone("Right_UpperArm", "RightArm", "B-upperArm.R");
+        rightLowerArm = FindBone("Right_LowerArm", "RightForeArm", "RightForearm", "B-forearm.R");
+        leftUpperLeg = FindBone("LeftLeg", "Left_UpperLeg", "LeftUpperLeg", "B-thigh.L");
+        leftLowerLeg = FindBone("LeftKnee", "Left_LowerLeg", "LeftLowerLeg", "B-shin.L");
+        rightUpperLeg = FindBone("RightLeg", "Right_UpperLeg", "RightUpperLeg", "B-thigh.R");
+        rightLowerLeg = FindBone("RightKnee", "Right_LowerLeg", "RightLowerLeg", "B-shin.R");
     }
 
     private void ApplyBlockPose(float weight)
