@@ -18,6 +18,7 @@ UserSettings/
 *.user
 *.userprefs
 *.vcxproj*
+*.unitypackage
 
 # OS files
 .DS_Store

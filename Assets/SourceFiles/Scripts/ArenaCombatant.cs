@@ -6,12 +6,14 @@ public class ArenaCombatant : MonoBehaviour
 {
     private const float BlockDamageMultiplier = 0.35f;
     private const float BlockKnockbackMultiplier = 0.55f;
+    private static readonly Vector3 HeldBallLocalPosition = new Vector3(0.01f, -0.02f, -0.02f);
 
     [SerializeField] private float maxHealth = 100f;
 
     public string DisplayName { get; private set; }
     public bool IsPlayerControlled { get; private set; }
-    public Transform WeaponMuzzle { get; private set; }
+    public Transform HeldBallAnchor { get; private set; }
+    public Transform ThrowOrigin { get; private set; }
     public ArenaCombatant Opponent { get; private set; }
     public Collider[] Colliders { get; private set; }
     public bool HasBall { get; private set; }
@@ -45,9 +47,10 @@ public class ArenaCombatant : MonoBehaviour
         Opponent = opponent;
     }
 
-    public void SetWeaponMuzzle(Transform muzzle)
+    public void SetAttachmentPoints(Transform heldBallAnchor, Transform throwOrigin)
     {
-        WeaponMuzzle = muzzle;
+        HeldBallAnchor = heldBallAnchor;
+        ThrowOrigin = throwOrigin;
         EnsureHeldBallVisual();
         UpdateHeldBallVisual();
     }
@@ -134,28 +137,31 @@ public class ArenaCombatant : MonoBehaviour
 
     private void EnsureHeldBallVisual()
     {
-        if (heldBallVisual != null || WeaponMuzzle == null)
+        if (heldBallVisual != null || HeldBallAnchor == null)
         {
             return;
         }
 
-        heldBallVisual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        heldBallVisual.name = "HeldArenaBall";
-        heldBallVisual.transform.SetParent(WeaponMuzzle, false);
-        heldBallVisual.transform.localPosition = new Vector3(0f, 0f, -0.08f);
+        if (MiniGameManager.Instance != null)
+        {
+            heldBallVisual = MiniGameManager.Instance.CreateArenaBallVisualInstance(false, "HeldArenaBall");
+        }
+        else
+        {
+            heldBallVisual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            heldBallVisual.name = "HeldArenaBall";
+            heldBallVisual.transform.localScale = GetHeldBallLocalScale();
+        }
+
+        heldBallVisual.transform.SetParent(HeldBallAnchor, false);
+        heldBallVisual.transform.localPosition = HeldBallLocalPosition;
         heldBallVisual.transform.localRotation = Quaternion.identity;
-        heldBallVisual.transform.localScale = Vector3.one * 0.32f;
+        heldBallVisual.transform.localScale = GetHeldBallLocalScale();
 
         Collider collider = heldBallVisual.GetComponent<Collider>();
         if (collider != null)
         {
             Destroy(collider);
-        }
-
-        Renderer renderer = heldBallVisual.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            renderer.material.color = IsPlayerControlled ? new Color(0.25f, 0.9f, 1f) : new Color(1f, 0.4f, 0.2f);
         }
     }
 
@@ -165,5 +171,21 @@ public class ArenaCombatant : MonoBehaviour
         {
             heldBallVisual.SetActive(HasBall);
         }
+    }
+
+    private Vector3 GetHeldBallLocalScale()
+    {
+        float scale = MiniGameManager.Instance != null ? MiniGameManager.Instance.BallVisualScale : 0.42f;
+        if (HeldBallAnchor == null)
+        {
+            return Vector3.one * scale;
+        }
+
+        Vector3 parentScale = HeldBallAnchor.lossyScale;
+        float safeX = Mathf.Abs(parentScale.x) > 0.0001f ? parentScale.x : 1f;
+        float safeY = Mathf.Abs(parentScale.y) > 0.0001f ? parentScale.y : 1f;
+        float safeZ = Mathf.Abs(parentScale.z) > 0.0001f ? parentScale.z : 1f;
+
+        return new Vector3(scale / safeX, scale / safeY, scale / safeZ);
     }
 }

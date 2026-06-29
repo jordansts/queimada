@@ -1,3 +1,4 @@
+using StarterAssets;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -12,17 +13,15 @@ public class ArenaPlayerShooter : MonoBehaviour
     [SerializeField] private float damage = 28f;
     [SerializeField] private float knockbackForce = 140f;
     [SerializeField] private float aimRange = 120f;
-    [SerializeField] private float aimHeight = 1.1f;
 
     private ArenaCombatant owner;
     private ArenaThrowClipPlayer throwClipPlayer;
+    private ThirdPersonController thirdPersonController;
     private float cooldownRemaining;
     private Vector3 currentAimPoint;
     private bool hasAimPoint;
     private bool throwQueued;
     private float throwReleaseTimer;
-    private Vector3 queuedSpawnPosition;
-    private Vector3 queuedDirection;
     private Vector3 queuedAimPoint;
 
     public bool HasAimPoint => hasAimPoint;
@@ -32,6 +31,7 @@ public class ArenaPlayerShooter : MonoBehaviour
     {
         this.owner = owner;
         throwClipPlayer = GetComponent<ArenaThrowClipPlayer>();
+        thirdPersonController = GetComponent<ThirdPersonController>();
     }
 
     private void Update()
@@ -59,10 +59,9 @@ public class ArenaPlayerShooter : MonoBehaviour
     private bool WasFirePressedThisFrame()
     {
 #if ENABLE_INPUT_SYSTEM
-        bool mousePressed = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
-        return mousePressed;
+        return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
 #else
-    return Input.GetMouseButtonDown(0);
+        return Input.GetMouseButtonDown(0);
 #endif
     }
 
@@ -70,63 +69,43 @@ public class ArenaPlayerShooter : MonoBehaviour
     {
         cooldownRemaining = fireCooldown;
         throwClipPlayer?.PlayThrow();
-
-        Transform muzzle = owner.WeaponMuzzle != null ? owner.WeaponMuzzle : transform;
-        Vector3 spawnPosition = muzzle.position;
-        Vector3 aimPoint = ResolveAimPoint(spawnPosition);
-        Vector3 direction = (aimPoint - spawnPosition).normalized;
-
-        if (direction.sqrMagnitude < 0.0001f)
-        {
-            direction = GetFlatForward();
-            aimPoint = spawnPosition + direction * aimRange;
-        }
-
-        spawnPosition += direction * 0.4f;
-        queuedSpawnPosition = spawnPosition;
-        queuedDirection = direction;
-        queuedAimPoint = aimPoint;
+        currentAimPoint = ResolveAimPoint(GetThrowOriginPosition());
+        queuedAimPoint = currentAimPoint;
+        owner.RemoveBall();
         throwReleaseTimer = throwClipPlayer != null ? throwClipPlayer.ReleaseDelay : 0f;
         throwQueued = true;
     }
 
-    private void SpawnProjectile(Vector3 position, Vector3 direction, Vector3 aimPoint, Color color)
-    {
-        ArenaProjectileFactory.CreateProjectile(
-            "PlayerProjectile",
-            owner,
-            position,
-            direction,
-            projectileSpeed,
-            damage,
-            knockbackForce,
-            color,
-            aimPoint);
-    }
-
     private void UpdateAimPoint()
     {
-        Vector3 fallbackOrigin = owner != null && owner.WeaponMuzzle != null ? owner.WeaponMuzzle.position : transform.position;
+        Vector3 fallbackOrigin = GetThrowOriginPosition();
         currentAimPoint = ResolveAimPoint(fallbackOrigin);
         hasAimPoint = true;
     }
 
     private Vector3 ResolveAimPoint(Vector3 fallbackOrigin)
     {
-        if (Camera.main == null)
+        Vector3 cameraForward = ResolveAimForward();
+        Vector3 cameraPosition = ResolveAimOrigin();
+
+        if (cameraForward.sqrMagnitude < 0.0001f)
         {
             return fallbackOrigin + transform.forward * aimRange;
         }
 
-        Camera mainCamera = Camera.main;
-        Vector3 cameraPosition = mainCamera.transform.position;
-        Vector3 cameraForward = mainCamera.transform.forward.normalized;
         Ray aimRay = new Ray(cameraPosition, cameraForward);
         Vector3 aimPoint = aimRay.GetPoint(aimRange);
 
-        if (Physics.Raycast(aimRay, out RaycastHit hit, aimRange, ~0, QueryTriggerInteraction.Ignore))
+        RaycastHit[] hits = Physics.RaycastAll(aimRay, aimRange, ~0, QueryTriggerInteraction.Ignore);
+        System.Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
+        for (int i = 0; i < hits.Length; i++)
         {
-            aimPoint = hit.point;
+            ArenaCombatant selfHit = hits[i].collider.GetComponentInParent<ArenaCombatant>();
+            if (selfHit == null || selfHit != owner)
+            {
+                aimPoint = hits[i].point;
+                break;
+            }
         }
 
         Vector3 toAimPoint = aimPoint - fallbackOrigin;
@@ -164,12 +143,71 @@ public class ArenaPlayerShooter : MonoBehaviour
         }
 
         throwQueued = false;
-        if (owner == null || !owner.HasBall)
+        if (owner == null)
         {
             return;
         }
 
-        owner.RemoveBall();
-        SpawnProjectile(queuedSpawnPosition, queuedDirection, queuedAimPoint, new Color(0.25f, 0.9f, 1f));
+        Vector3 spawnPosition = GetThrowOriginPosition();
+        Vector3 aimPoint = queuedAimPoint;
+        Vector3 cameraForward = ResolveAimForward();
+        Vector3 direction = (aimPoint - spawnPosition).normalized;
+        if (direction.sqrMagnitude < 0.0001f || Vector3.Dot(direction, cameraForward) <= 0.15f)
+        {
+            direction = cameraForward;
+        }
+
+        spawnPosition += direction * 0.4f;
+        ArenaProjectileFactory.CreateProjectile(
+            "PlayerProjectile",
+            owner,
+            spawnPosition,
+            direction * projectileSpeed,
+            damage,
+            knockbackForce,
+            false);
+    }
+
+    private Vector3 GetThrowOriginPosition()
+    {
+        return owner != null && owner.ThrowOrigin != null ? owner.ThrowOrigin.position : transform.position;
+    }
+
+    private Vector3 ResolveAimForward()
+    {
+        if (thirdPersonController != null && thirdPersonController.CinemachineCameraTarget != null)
+        {
+            Vector3 direction = thirdPersonController.CinemachineCameraTarget.transform.forward;
+            if (direction.sqrMagnitude > 0.0001f)
+            {
+                return direction.normalized;
+            }
+        }
+
+        if (Camera.main != null)
+        {
+            Vector3 direction = Camera.main.transform.forward;
+            if (direction.sqrMagnitude > 0.0001f)
+            {
+                return direction.normalized;
+            }
+        }
+
+        return GetFlatForward();
+    }
+
+    private Vector3 ResolveAimOrigin()
+    {
+        if (thirdPersonController != null && thirdPersonController.CinemachineCameraTarget != null)
+        {
+            return thirdPersonController.CinemachineCameraTarget.transform.position;
+        }
+
+        if (Camera.main != null)
+        {
+            return Camera.main.transform.position;
+        }
+
+        return GetThrowOriginPosition();
     }
 }

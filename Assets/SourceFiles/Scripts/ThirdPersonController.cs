@@ -314,14 +314,14 @@ public bool IsRespawning { get; set; } = false;
             _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
             if (_animationBlend < 0.01f) _animationBlend = 0f;
 
-            float cameraYaw = _mainCamera != null ? _mainCamera.transform.eulerAngles.y : transform.eulerAngles.y;
+            float cameraYaw = GetCameraBasisYaw();
             _targetRotation = cameraYaw;
             float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
                 RotationSmoothTime);
             transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
 
-            Vector3 cameraForward = _mainCamera != null ? _mainCamera.transform.forward : transform.forward;
-            Vector3 cameraRight = _mainCamera != null ? _mainCamera.transform.right : transform.right;
+            Vector3 cameraForward = GetCameraPlanarForward();
+            Vector3 cameraRight = GetCameraPlanarRight();
             cameraForward = Vector3.ProjectOnPlane(cameraForward, Vector3.up).normalized;
             cameraRight = Vector3.ProjectOnPlane(cameraRight, Vector3.up).normalized;
 
@@ -455,8 +455,8 @@ public bool IsRespawning { get; set; } = false;
             _rollCooldownDelta = RollCooldown;
             IsBlocking = false;
 
-            Vector3 cameraForward = _mainCamera != null ? _mainCamera.transform.forward : transform.forward;
-            Vector3 cameraRight = _mainCamera != null ? _mainCamera.transform.right : transform.right;
+            Vector3 cameraForward = GetCameraPlanarForward();
+            Vector3 cameraRight = GetCameraPlanarRight();
             cameraForward = Vector3.ProjectOnPlane(cameraForward, Vector3.up).normalized;
             cameraRight = Vector3.ProjectOnPlane(cameraRight, Vector3.up).normalized;
 
@@ -533,6 +533,36 @@ public bool IsRespawning { get; set; } = false;
 
     Debug.Log($"Camera Yaw reset to {targetYaw} degrees.");
 }
+
+        private float GetCameraBasisYaw()
+        {
+            if (CinemachineCameraTarget != null)
+            {
+                return CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+            }
+
+            return _mainCamera != null ? _mainCamera.transform.eulerAngles.y : transform.eulerAngles.y;
+        }
+
+        private Vector3 GetCameraPlanarForward()
+        {
+            if (CinemachineCameraTarget != null)
+            {
+                return CinemachineCameraTarget.transform.forward;
+            }
+
+            return _mainCamera != null ? _mainCamera.transform.forward : transform.forward;
+        }
+
+        private Vector3 GetCameraPlanarRight()
+        {
+            if (CinemachineCameraTarget != null)
+            {
+                return CinemachineCameraTarget.transform.right;
+            }
+
+            return _mainCamera != null ? _mainCamera.transform.right : transform.right;
+        }
     }
 
     

@@ -1,102 +1,162 @@
 using UnityEngine;
 
 [RequireComponent(typeof(SphereCollider))]
+[RequireComponent(typeof(Rigidbody))]
 public class ArenaProjectile : MonoBehaviour
 {
-    private const float HitRadius = 0.18f;
-    private const float TargetArrivalDistance = 0.12f;
+    private const float LifetimeSeconds = 6f;
+    private const float SpawnOwnerCollisionIgnoreSeconds = 0.75f;
+    private const float GroundContactNormalThreshold = 0.45f;
 
     private ArenaCombatant owner;
-    private float speed;
     private float damage;
     private float knockbackForce;
     private float lifetime;
-    private Vector3 flightDirection;
-    private Vector3 targetPoint;
-    private bool hasTargetPoint;
+    private float ownerCollisionIgnoreTimer;
     private bool resolved;
+    private bool hasBecomePickup;
+    private bool useGravityWhileThrown;
+    private Rigidbody projectileRigidbody;
+    private SphereCollider sphereCollider;
 
-    public void Initialize(ArenaCombatant owner, Vector3 direction, float speed, float damage, float knockbackForce, Color color, Vector3? targetPoint = null)
+    private void Awake()
     {
-        this.owner = owner;
-        this.speed = speed;
-        this.damage = damage;
-        this.knockbackForce = knockbackForce;
-        lifetime = 4f;
-        flightDirection = direction.normalized;
-        if (targetPoint.HasValue)
-        {
-            this.targetPoint = targetPoint.Value;
-            hasTargetPoint = true;
-        }
-        transform.forward = flightDirection;
-
-        Renderer renderer = GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            renderer.material.color = color;
-        }
+        projectileRigidbody = GetComponent<Rigidbody>();
+        sphereCollider = GetComponent<SphereCollider>();
     }
 
-    private void Update()
+    public void Initialize(ArenaCombatant owner, Vector3 initialVelocity, float damage, float knockbackForce, bool useGravityWhileThrown)
     {
-        float step = speed * Time.deltaTime;
-        Vector3 origin = transform.position;
-        Vector3 direction = ResolveFlightDirection(origin);
+        this.owner = owner;
+        this.damage = damage;
+        this.knockbackForce = knockbackForce;
+        this.useGravityWhileThrown = useGravityWhileThrown;
+        lifetime = LifetimeSeconds;
+        ownerCollisionIgnoreTimer = useGravityWhileThrown ? SpawnOwnerCollisionIgnoreSeconds : float.PositiveInfinity;
 
-        if (Physics.SphereCast(origin, HitRadius, direction, out RaycastHit hit, step, ~0, QueryTriggerInteraction.Ignore))
+        if (projectileRigidbody == null)
         {
-            ArenaCombatant target = hit.collider.GetComponentInParent<ArenaCombatant>();
-            if (target != null && target != owner)
-            {
-                Vector3 horizontalDirection = Vector3.ProjectOnPlane(direction, Vector3.up).normalized;
-                if (horizontalDirection.sqrMagnitude < 0.0001f)
-                {
-                    horizontalDirection = Vector3.ProjectOnPlane(target.transform.position - owner.transform.position, Vector3.up).normalized;
-                }
+            projectileRigidbody = GetComponent<Rigidbody>();
+        }
 
-                Vector3 impulse = (horizontalDirection * 1.2f + Vector3.up * 0.18f).normalized * knockbackForce;
-                target.ApplyHit(damage, impulse);
-                Vector3 dropDirection = horizontalDirection.sqrMagnitude > 0.0001f ? horizontalDirection : direction;
-                ResolveIntoPickup(hit.point + dropDirection * 1.35f);
-                return;
+        if (sphereCollider == null)
+        {
+            sphereCollider = GetComponent<SphereCollider>();
+        }
+
+        if (owner != null && sphereCollider != null && owner.Colliders != null)
+        {
+            foreach (Collider ownerCollider in owner.Colliders)
+            {
+                if (ownerCollider != null)
+                {
+                    Physics.IgnoreCollision(sphereCollider, ownerCollider, true);
+                }
             }
         }
 
-        transform.position += direction * step;
-        flightDirection = direction;
-        transform.forward = direction;
+        projectileRigidbody.useGravity = useGravityWhileThrown;
+        projectileRigidbody.linearVelocity = initialVelocity;
+        projectileRigidbody.angularVelocity = Random.onUnitSphere * 12f;
 
-        if (hasTargetPoint && Vector3.Distance(transform.position, targetPoint) <= TargetArrivalDistance)
+        if (initialVelocity.sqrMagnitude > 0.0001f)
         {
-            ResolveIntoPickup(transform.position);
+            transform.forward = initialVelocity.normalized;
+        }
+    }
+
+    private void FixedUpdate()
+    {
+        if (resolved || projectileRigidbody == null)
+        {
             return;
         }
 
-        lifetime -= Time.deltaTime;
-        if (lifetime <= 0f)
+        if (!hasBecomePickup)
         {
-            ResolveIntoPickup(transform.position);
+            lifetime -= Time.fixedDeltaTime;
+            if (lifetime <= 0f)
+            {
+                ResolveIntoPickup(transform.position);
+                return;
+            }
+
+            if (!float.IsPositiveInfinity(ownerCollisionIgnoreTimer))
+            {
+                ownerCollisionIgnoreTimer -= Time.fixedDeltaTime;
+                if (ownerCollisionIgnoreTimer <= 0f)
+                {
+                    RestoreOwnerCollision();
+                }
+            }
+        }
+
+        Vector3 velocity = projectileRigidbody.linearVelocity;
+        if (velocity.sqrMagnitude > 0.04f)
+        {
+            transform.forward = velocity.normalized;
         }
     }
 
-    private Vector3 ResolveFlightDirection(Vector3 origin)
+    private void OnCollisionEnter(Collision collision)
     {
-        if (!hasTargetPoint)
+        if (resolved)
         {
-            return flightDirection;
+            return;
         }
 
-        Vector3 toTarget = targetPoint - origin;
-        if (toTarget.sqrMagnitude < 0.0001f)
+        ArenaCombatant target = collision.collider.GetComponentInParent<ArenaCombatant>();
+        if (target != null && target != owner)
         {
-            return flightDirection;
+            Vector3 velocity = projectileRigidbody != null ? projectileRigidbody.linearVelocity : transform.forward;
+            Vector3 horizontalDirection = Vector3.ProjectOnPlane(velocity, Vector3.up).normalized;
+            if (horizontalDirection.sqrMagnitude < 0.0001f && owner != null)
+            {
+                horizontalDirection = Vector3.ProjectOnPlane(target.transform.position - owner.transform.position, Vector3.up).normalized;
+            }
+
+            Vector3 impulse = (horizontalDirection * 1.15f + Vector3.up * 0.2f).normalized * knockbackForce;
+            target.ApplyHit(damage, impulse);
+
+            ContactPoint contact = collision.contactCount > 0 ? collision.GetContact(0) : default;
+            Vector3 dropPosition = collision.contactCount > 0
+                ? contact.point + contact.normal * 0.18f
+                : transform.position;
+
+            ResolveIntoPickup(dropPosition);
+            return;
         }
 
-        return toTarget.normalized;
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            ContactPoint contact = collision.GetContact(i);
+            if (contact.normal.y >= GroundContactNormalThreshold)
+            {
+                BecomePickup(contact.point + contact.normal * 0.12f);
+                return;
+            }
+        }
     }
 
-    private void ResolveIntoPickup(Vector3 position)
+    private void RestoreOwnerCollision()
+    {
+        if (ownerCollisionIgnoreTimer > 0f || owner == null || sphereCollider == null || owner.Colliders == null)
+        {
+            return;
+        }
+
+        foreach (Collider ownerCollider in owner.Colliders)
+        {
+            if (ownerCollider != null)
+            {
+                Physics.IgnoreCollision(sphereCollider, ownerCollider, false);
+            }
+        }
+
+        ownerCollisionIgnoreTimer = float.MinValue;
+    }
+
+    private void ResolveIntoPickup(Vector3 position, float pickupDelay = 0.45f)
     {
         if (resolved)
         {
@@ -104,7 +164,34 @@ public class ArenaProjectile : MonoBehaviour
         }
 
         resolved = true;
-        MiniGameManager.Instance?.SpawnArenaBall(position, 0.45f);
+        MiniGameManager.Instance?.SpawnArenaBall(position, pickupDelay);
         Destroy(gameObject);
+    }
+
+    private void BecomePickup(Vector3 position)
+    {
+        if (resolved || hasBecomePickup)
+        {
+            return;
+        }
+
+        hasBecomePickup = true;
+        ownerCollisionIgnoreTimer = float.MinValue;
+        RestoreOwnerCollision();
+        useGravityWhileThrown = true;
+        if (projectileRigidbody != null)
+        {
+            projectileRigidbody.useGravity = true;
+            projectileRigidbody.linearDamping = 0.06f;
+        }
+
+        ArenaBallPickup pickup = GetComponent<ArenaBallPickup>();
+        if (pickup == null)
+        {
+            pickup = gameObject.AddComponent<ArenaBallPickup>();
+        }
+
+        pickup.Initialize(position, 0f, false);
+        MiniGameManager.Instance?.RegisterLooseArenaBall(pickup);
     }
 }
