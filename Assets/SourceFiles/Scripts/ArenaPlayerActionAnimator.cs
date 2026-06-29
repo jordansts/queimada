@@ -5,6 +5,18 @@ using UnityEngine;
 [RequireComponent(typeof(ThirdPersonController))]
 public class ArenaPlayerActionAnimator : MonoBehaviour
 {
+    private struct BoneBinding
+    {
+        public Transform Transform;
+        public Quaternion BaseLocalRotation;
+
+        public BoneBinding(Transform transform)
+        {
+            Transform = transform;
+            BaseLocalRotation = transform != null ? transform.localRotation : Quaternion.identity;
+        }
+    }
+
     private ThirdPersonController controller;
     private ArenaThrowClipPlayer throwClipPlayer;
     private Transform actorRoot;
@@ -22,6 +34,7 @@ public class ArenaPlayerActionAnimator : MonoBehaviour
     private Transform leftLowerLeg;
     private Transform rightUpperLeg;
     private Transform rightLowerLeg;
+    private BoneBinding[] boneBindings;
 
     private void Awake()
     {
@@ -37,6 +50,8 @@ public class ArenaPlayerActionAnimator : MonoBehaviour
         {
             return;
         }
+
+        RestoreBasePose();
 
         if (throwClipPlayer != null && throwClipPlayer.IsThrowing)
         {
@@ -77,6 +92,39 @@ public class ArenaPlayerActionAnimator : MonoBehaviour
         leftLowerLeg = FindBone("LeftKnee", "Left_LowerLeg", "LeftLowerLeg", "B-shin.L");
         rightUpperLeg = FindBone("RightLeg", "Right_UpperLeg", "RightUpperLeg", "B-thigh.R");
         rightLowerLeg = FindBone("RightKnee", "Right_LowerLeg", "RightLowerLeg", "B-shin.R");
+        boneBindings = new[]
+        {
+            new BoneBinding(hips),
+            new BoneBinding(spine),
+            new BoneBinding(chest),
+            new BoneBinding(head),
+            new BoneBinding(leftShoulder),
+            new BoneBinding(leftUpperArm),
+            new BoneBinding(leftLowerArm),
+            new BoneBinding(rightShoulder),
+            new BoneBinding(rightUpperArm),
+            new BoneBinding(rightLowerArm),
+            new BoneBinding(leftUpperLeg),
+            new BoneBinding(leftLowerLeg),
+            new BoneBinding(rightUpperLeg),
+            new BoneBinding(rightLowerLeg)
+        };
+    }
+
+    private void RestoreBasePose()
+    {
+        if (boneBindings == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < boneBindings.Length; i++)
+        {
+            if (boneBindings[i].Transform != null)
+            {
+                boneBindings[i].Transform.localRotation = boneBindings[i].BaseLocalRotation;
+            }
+        }
     }
 
     private void ApplyBlockPose(float weight)

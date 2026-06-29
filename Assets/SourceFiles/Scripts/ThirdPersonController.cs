@@ -1,4 +1,4 @@
-﻿ using UnityEngine;
+using UnityEngine;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -91,6 +91,7 @@ namespace StarterAssets
         public bool LockCameraPosition = false;
 
         public Vector2  LookSensitivity = new Vector2(7.5f, 5.0f);
+        public bool InvertLookY = false;
 
         // cinemachine
         private float _cinemachineTargetYaw;
@@ -254,7 +255,8 @@ public bool IsRespawning { get; set; } = false;
         float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
 
         _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier * LookSensitivity.x;
-        _cinemachineTargetPitch -= _input.look.y * deltaTimeMultiplier * LookSensitivity.y;
+        float lookYDirection = InvertLookY ? -1f : 1f;
+        _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier * LookSensitivity.y * lookYDirection;
     }
 
     _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);

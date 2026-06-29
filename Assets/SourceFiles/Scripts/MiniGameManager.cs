@@ -3,6 +3,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class MiniGameManager : MonoBehaviour
 {
@@ -38,6 +41,8 @@ public class MiniGameManager : MonoBehaviour
     private BoxCollider playFieldSurfaceCollider;
     private Transform boundaryRoot;
     private ArenaBallService ballService;
+    private Material cachedBotRedMaterial;
+    private Material cachedBotBlueMaterial;
 
     private struct ArenaLayout
     {
@@ -322,6 +327,7 @@ public class MiniGameManager : MonoBehaviour
         SetComponentEnabled<RespawnPlayer>(actorRoot, false);
         ConfigureGroundMask(actorRoot);
         GetOrAddComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, false);
+        ApplyBotVisualMaterial(sceneRoot);
 
         ArenaCombatant combatant = PrepareCombatant(actorRoot, "AI Robot", false, spawnPosition, spawnRotation);
         GetOrAddThrowClipPlayer(actorRoot).Initialize(actorRoot.transform);
@@ -710,6 +716,117 @@ public class MiniGameManager : MonoBehaviour
         {
             controller.GroundLayers = ~0;
         }
+    }
+
+    private void ApplyBotVisualMaterial(GameObject sceneRoot)
+    {
+        if (sceneRoot == null)
+        {
+            return;
+        }
+
+        Material redMaterial = GetBotRedMaterial();
+        Material blueMaterial = GetBotBlueMaterial();
+        if (redMaterial == null || blueMaterial == null)
+        {
+            return;
+        }
+
+        foreach (Renderer renderer in sceneRoot.GetComponentsInChildren<Renderer>(true))
+        {
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            Material[] sharedMaterials = renderer.sharedMaterials;
+            bool changed = false;
+            for (int i = 0; i < sharedMaterials.Length; i++)
+            {
+                Material sharedMaterial = sharedMaterials[i];
+                if (sharedMaterial == null)
+                {
+                    continue;
+                }
+
+                if (sharedMaterial == blueMaterial)
+                {
+                    sharedMaterials[i] = redMaterial;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                renderer.sharedMaterials = sharedMaterials;
+            }
+        }
+    }
+
+    private Material GetBotRedMaterial()
+    {
+        if (cachedBotRedMaterial != null)
+        {
+            return cachedBotRedMaterial;
+        }
+
+        foreach (Material material in Resources.FindObjectsOfTypeAll<Material>())
+        {
+            if (material != null && material.name == "Material_Simple_Red")
+            {
+                cachedBotRedMaterial = material;
+                return cachedBotRedMaterial;
+            }
+        }
+
+#if UNITY_EDITOR
+        cachedBotRedMaterial = AssetDatabase.LoadAssetAtPath<Material>(
+            "Assets/Kevin Iglesias/Human Character Dummy/Materials/HumanDummy_Red.mat");
+#endif
+        if (cachedBotRedMaterial != null)
+        {
+            return cachedBotRedMaterial;
+        }
+
+        foreach (Material material in Resources.FindObjectsOfTypeAll<Material>())
+        {
+            if (material != null && material.name == "HumanDummy_Red")
+            {
+                cachedBotRedMaterial = material;
+                break;
+            }
+        }
+
+        return cachedBotRedMaterial;
+    }
+
+    private Material GetBotBlueMaterial()
+    {
+        if (cachedBotBlueMaterial != null)
+        {
+            return cachedBotBlueMaterial;
+        }
+
+#if UNITY_EDITOR
+        cachedBotBlueMaterial = AssetDatabase.LoadAssetAtPath<Material>(
+            "Assets/Kevin Iglesias/Human Character Dummy/Materials/HumanDummy_Blue.mat");
+#endif
+
+        if (cachedBotBlueMaterial != null)
+        {
+            return cachedBotBlueMaterial;
+        }
+
+        foreach (Material material in Resources.FindObjectsOfTypeAll<Material>())
+        {
+            if (material != null && material.name == "HumanDummy_Blue")
+            {
+                cachedBotBlueMaterial = material;
+                break;
+            }
+        }
+
+        return cachedBotBlueMaterial;
     }
 
     private static ArenaThrowClipPlayer GetOrAddThrowClipPlayer(GameObject target)

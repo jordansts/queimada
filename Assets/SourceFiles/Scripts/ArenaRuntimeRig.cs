@@ -51,13 +51,7 @@ public class ArenaRuntimeRig : MonoBehaviour
                 : "Untagged";
         }
 
-        foreach (AudioListener listener in sceneRoot.GetComponentsInChildren<AudioListener>(true))
-        {
-            if (listener != null)
-            {
-                listener.enabled = isActive;
-            }
-        }
+        SetPrimaryAudioListener(primaryCamera, isActive);
 
         Transform followCamera = MiniGameManager.FindChildRecursive(sceneRoot, "PlayerFollowCamera");
         if (followCamera != null)
@@ -86,6 +80,41 @@ public class ArenaRuntimeRig : MonoBehaviour
             {
                 cameraComponent.enabled = false;
             }
+        }
+    }
+
+
+    private void SetPrimaryAudioListener(Camera primaryCamera, bool isActive)
+    {
+        AudioListener primaryListener = null;
+        if (isActive && primaryCamera != null)
+        {
+            primaryListener = primaryCamera.GetComponent<AudioListener>();
+        }
+
+        if (isActive && primaryListener == null)
+        {
+            primaryListener = sceneRoot.GetComponentInChildren<AudioListener>(true);
+        }
+
+        foreach (AudioListener listener in FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (listener == null)
+            {
+                continue;
+            }
+
+            if (!isActive)
+            {
+                if (listener.transform.IsChildOf(sceneRoot))
+                {
+                    listener.enabled = false;
+                }
+
+                continue;
+            }
+
+            listener.enabled = listener == primaryListener;
         }
     }
 

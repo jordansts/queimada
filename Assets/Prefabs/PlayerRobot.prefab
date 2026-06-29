@@ -1373,46 +1373,7 @@ Transform:
   - {fileID: 414191329514085314}
   m_Father: {fileID: 7152401093164179880}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &4164629545193377320
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 573745083409182627}
-  - component: {fileID: 8426435639557672553}
-  m_Layer: 0
-  m_Name: RobotListener
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!4 &573745083409182627
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4164629545193377320}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 7493646760659765119}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!81 &8426435639557672553
-AudioListener:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4164629545193377320}
-  m_Enabled: 1
+
 --- !u!1 &4199005853134199443
 GameObject:
   m_ObjectHideFlags: 0
@@ -1959,7 +1920,7 @@ MonoBehaviour:
   BottomClamp: -30
   CameraAngleOverride: 0
   LockCameraPosition: 0
-  LookSensitivity: {x: 5, y: 5}
+  LookSensitivity: {x: 2.5, y: 2.5}
 --- !u!114 &1764945173950795790
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2891,7 +2852,6 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 573745083409182627}
   - {fileID: 2823578419122809494}
   - {fileID: 6122253460708401031}
   - {fileID: 3404476795083526620}

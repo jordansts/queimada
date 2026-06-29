@@ -60,23 +60,13 @@ namespace StarterAssets
 
 	private void Awake()
 	{
-		SetCursorState(cursorLocked);
-		Cursor.visible = false;
+		ApplyCursorState();
 	}
 
 		private void Update()
 		{
 #if ENABLE_INPUT_SYSTEM
-			move = ReadMoveInput();
-			look = ReadLookInput();
-			sprint = ReadSprintInput();
-			jump = Keyboard.current != null && Keyboard.current.spaceKey.isPressed;
 			block = Mouse.current != null && Mouse.current.rightButton.isPressed;
-
-			if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
-			{
-				_jumpPressedThisFrame = true;
-			}
 
 			bool rollPressed = Keyboard.current != null &&
 				(Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed);
@@ -108,65 +98,6 @@ namespace StarterAssets
 			}
 #endif
 		}
-
-#if ENABLE_INPUT_SYSTEM
-		private Vector2 ReadMoveInput()
-		{
-			Vector2 keyboardMove = Vector2.zero;
-			if (Keyboard.current != null)
-			{
-				keyboardMove.x =
-					(Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed ? 1f : 0f) -
-					(Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed ? 1f : 0f);
-				keyboardMove.y =
-					(Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed ? 1f : 0f) -
-					(Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed ? 1f : 0f);
-			}
-
-			if (keyboardMove.sqrMagnitude > 0f)
-			{
-				return Vector2.ClampMagnitude(keyboardMove, 1f);
-			}
-
-			if (Gamepad.current != null)
-			{
-				return Vector2.ClampMagnitude(Gamepad.current.leftStick.ReadValue(), 1f);
-			}
-
-			return Vector2.zero;
-		}
-
-		private bool ReadSprintInput()
-		{
-			bool keyboardSprint = Keyboard.current != null &&
-				(Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
-			bool gamepadSprint = Gamepad.current != null &&
-				(Gamepad.current.leftTrigger.ReadValue() > 0.5f || Gamepad.current.rightShoulder.isPressed);
-			return keyboardSprint || gamepadSprint;
-		}
-
-		private Vector2 ReadLookInput()
-		{
-			if (!cursorInputForLook)
-			{
-				return Vector2.zero;
-			}
-
-			Vector2 mouseLook = Mouse.current != null ? Mouse.current.delta.ReadValue() : Vector2.zero;
-			if (mouseLook.sqrMagnitude > 0f)
-			{
-				return mouseLook;
-			}
-
-			if (Gamepad.current != null)
-			{
-				return Gamepad.current.rightStick.ReadValue();
-			}
-
-			return Vector2.zero;
-		}
-
-#endif
 
 		public void MoveInput(Vector2 newMoveDirection)
 		{
@@ -203,6 +134,11 @@ namespace StarterAssets
 		}
 
 		private void OnApplicationFocus(bool hasFocus)
+		{
+			ApplyCursorState();
+		}
+
+		public void ApplyCursorState()
 		{
 			SetCursorState(cursorLocked);
 		}
