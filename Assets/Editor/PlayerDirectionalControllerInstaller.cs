@@ -81,6 +81,7 @@ public static class PlayerDirectionalControllerInstaller
         EnsureBoolParameter(controller, "Grounded");
         EnsureBoolParameter(controller, "Jump");
         EnsureBoolParameter(controller, "FreeFall");
+        EnsureTriggerParameter(controller, "Roll");
 
         AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
         BlendTree locomotionTree = GetOrCreateLocomotionTree(controller);
@@ -101,6 +102,10 @@ public static class PlayerDirectionalControllerInstaller
         AnimatorState landState = stateMachine.AddState("Land", new Vector3(500f, 250f, 0f));
         landState.motion = LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Jump/HumanM@Jump01 - Land.fbx", "HumanM@Jump01 - Land");
         landState.iKOnFeet = true;
+
+        AnimatorState rollState = stateMachine.AddState("Roll", new Vector3(500f, 100f, 0f));
+        rollState.motion = LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/HumanM@Roll01.fbx", "HumanM@Roll01");
+        rollState.iKOnFeet = true;
 
         stateMachine.defaultState = locomotionState;
 
@@ -129,6 +134,16 @@ public static class PlayerDirectionalControllerInstaller
         landToLocomotionTransition.exitTime = 0.8f;
         landToLocomotionTransition.duration = 0.08f;
 
+        AnimatorStateTransition anyToRollTransition = stateMachine.AddAnyStateTransition(rollState);
+        anyToRollTransition.hasExitTime = false;
+        anyToRollTransition.duration = 0.03f;
+        anyToRollTransition.AddCondition(AnimatorConditionMode.If, 0f, "Roll");
+
+        AnimatorStateTransition rollToLocomotionTransition = rollState.AddTransition(locomotionState);
+        rollToLocomotionTransition.hasExitTime = true;
+        rollToLocomotionTransition.exitTime = 0.95f;
+        rollToLocomotionTransition.duration = 0.05f;
+
         AssignControllerToPlayerPrefabs(controller);
 
         EditorUtility.SetDirty(stateMachine);
@@ -136,6 +151,7 @@ public static class PlayerDirectionalControllerInstaller
         EditorUtility.SetDirty(jumpStartState);
         EditorUtility.SetDirty(inAirState);
         EditorUtility.SetDirty(landState);
+        EditorUtility.SetDirty(rollState);
         EditorUtility.SetDirty(controller);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -147,6 +163,11 @@ public static class PlayerDirectionalControllerInstaller
         while (stateMachine.states.Length > 0)
         {
             stateMachine.RemoveState(stateMachine.states[0].state);
+        }
+
+        while (stateMachine.anyStateTransitions.Length > 0)
+        {
+            stateMachine.RemoveAnyStateTransition(stateMachine.anyStateTransitions[0]);
         }
     }
 
@@ -183,21 +204,21 @@ public static class PlayerDirectionalControllerInstaller
 
         tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Walk/HumanM@Walk01_Forward.fbx", "HumanM@Walk01_Forward"), new Vector2(0f, 1f));
         tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Walk/HumanM@Walk01_Backward.fbx", "HumanM@Walk01_Backward"), new Vector2(0f, -1f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Walk/HumanM@Walk01_Left.fbx", "HumanM@Walk01_Left"), new Vector2(-1f, 0f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Walk/HumanM@Walk01_Right.fbx", "HumanM@Walk01_Right"), new Vector2(1f, 0f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Walk/HumanM@Walk01_ForwardLeft.fbx", "HumanM@Walk01_ForwardLeft"), new Vector2(-1f, 1f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Walk/HumanM@Walk01_ForwardRight.fbx", "HumanM@Walk01_ForwardRight"), new Vector2(1f, 1f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Walk/HumanM@Walk01_BackwardLeft.fbx", "HumanM@Walk01_BackwardLeft"), new Vector2(-1f, -1f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Walk/HumanM@Walk01_BackwardRight.fbx", "HumanM@Walk01_BackwardRight"), new Vector2(1f, -1f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeWalk/HumanM@StrafeWalk01_Left.fbx", "HumanM@StrafeWalk01_Left"), new Vector2(-1f, 0f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeWalk/HumanM@StrafeWalk01_Right.fbx", "HumanM@StrafeWalk01_Right"), new Vector2(1f, 0f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeWalk/HumanM@StrafeWalk01_ForwardLeft.fbx", "HumanM@StrafeWalk01_ForwardLeft"), new Vector2(-1f, 1f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeWalk/HumanM@StrafeWalk01_ForwardRight.fbx", "HumanM@StrafeWalk01_ForwardRight"), new Vector2(1f, 1f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeWalk/HumanM@StrafeWalk01_BackwardLeft.fbx", "HumanM@StrafeWalk01_BackwardLeft"), new Vector2(-1f, -1f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeWalk/HumanM@StrafeWalk01_BackwardRight.fbx", "HumanM@StrafeWalk01_BackwardRight"), new Vector2(1f, -1f));
 
         tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Run/HumanM@Run01_Forward.fbx", "HumanM@Run01_Forward"), new Vector2(0f, 2f));
         tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Run/HumanM@Run01_Backward.fbx", "HumanM@Run01_Backward"), new Vector2(0f, -2f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Run/HumanM@Run01_Left.fbx", "HumanM@Run01_Left"), new Vector2(-2f, 0f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Run/HumanM@Run01_Right.fbx", "HumanM@Run01_Right"), new Vector2(2f, 0f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Run/HumanM@Run01_ForwardLeft.fbx", "HumanM@Run01_ForwardLeft"), new Vector2(-2f, 2f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Run/HumanM@Run01_ForwardRight.fbx", "HumanM@Run01_ForwardRight"), new Vector2(2f, 2f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Run/HumanM@Run01_BackwardLeft.fbx", "HumanM@Run01_BackwardLeft"), new Vector2(-2f, -2f));
-        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Run/HumanM@Run01_BackwardRight.fbx", "HumanM@Run01_BackwardRight"), new Vector2(2f, -2f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeRun/HumanM@StrafeRun01_Left.fbx", "HumanM@StrafeRun01_Left"), new Vector2(-2f, 0f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeRun/HumanM@StrafeRun01_Right.fbx", "HumanM@StrafeRun01_Right"), new Vector2(2f, 0f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeRun/HumanM@StrafeRun01_ForwardLeft.fbx", "HumanM@StrafeRun01_ForwardLeft"), new Vector2(-2f, 2f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeRun/HumanM@StrafeRun01_ForwardRight.fbx", "HumanM@StrafeRun01_ForwardRight"), new Vector2(2f, 2f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeRun/HumanM@StrafeRun01_BackwardLeft.fbx", "HumanM@StrafeRun01_BackwardLeft"), new Vector2(-2f, -2f));
+        tree.AddChild(LoadClip("Assets/Kevin Iglesias/Human Animations/Animations/Male/Movement/Strafe/StrafeRun/HumanM@StrafeRun01_BackwardRight.fbx", "HumanM@StrafeRun01_BackwardRight"), new Vector2(2f, -2f));
 
         EditorUtility.SetDirty(tree);
     }
@@ -262,6 +283,16 @@ public static class PlayerDirectionalControllerInstaller
         }
 
         controller.AddParameter(parameterName, AnimatorControllerParameterType.Bool);
+    }
+
+    private static void EnsureTriggerParameter(AnimatorController controller, string parameterName)
+    {
+        if (controller.parameters.Any(parameter => parameter.name == parameterName))
+        {
+            return;
+        }
+
+        controller.AddParameter(parameterName, AnimatorControllerParameterType.Trigger);
     }
 
     private static void EnsureFolder(string folderPath)

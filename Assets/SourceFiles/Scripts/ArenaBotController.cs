@@ -42,6 +42,9 @@ public class ArenaBotController : MonoBehaviour
     [SerializeField] private float looseBallPlayerAvoidanceRadius = 1.7f;
     [SerializeField] private float targetPressureRange = 6.8f;
     [SerializeField] private float animationBlendRate = 10f;
+    [SerializeField] private float rollSpeed = 7.8f;
+    [SerializeField] private float rollDuration = 0.48f;
+    [SerializeField] private float rollCooldown = 1.4f;
 
     private ArenaCombatant owner;
     private ArenaThrowClipPlayer throwClipPlayer;
@@ -49,14 +52,18 @@ public class ArenaBotController : MonoBehaviour
     private Animator animator;
     private float verticalVelocity;
     private float cooldownRemaining;
+    private float rollRemaining;
+    private float rollCooldownRemaining;
     private float orbitDirection;
     private float orbitSwapTimer;
     private int speedHash;
     private int motionSpeedHash;
     private int moveXHash;
     private int moveYHash;
+    private int rollHash;
     private float moveXValue;
     private float moveYValue;
+    private Vector3 rollDirection;
     private Vector3 lastTargetPosition;
     private Vector3 targetVelocity;
     private BotState currentState;
@@ -87,6 +94,7 @@ public class ArenaBotController : MonoBehaviour
         motionSpeedHash = Animator.StringToHash("MotionSpeed");
         moveXHash = Animator.StringToHash("MoveX");
         moveYHash = Animator.StringToHash("MoveY");
+        rollHash = Animator.StringToHash("Roll");
     }
 
     private void Update()
@@ -98,6 +106,7 @@ public class ArenaBotController : MonoBehaviour
 
         ArenaCombatant target = owner.Opponent;
         UpdateQueuedThrow();
+        TickRollCooldown();
 
         if (!owner.HasBall)
         {
@@ -125,6 +134,7 @@ public class ArenaBotController : MonoBehaviour
         UpdateOrbitDirection(distance);
         UpdateDecision(target, flatToTarget, distance);
         RotateTowardAimPoint();
+        TryStartRollInCombat(distance);
         ApplyMovement(currentMoveDirection, moveSpeed);
         TickCooldown();
 
@@ -381,6 +391,7 @@ public class ArenaBotController : MonoBehaviour
     {
         Vector3 goalPosition = looseBall != null ? looseBall.position : target.transform.position;
         Vector3 flatToGoal = Vector3.ProjectOnPlane(goalPosition - transform.position, Vector3.up);
+        Vector3 flatFromTarget = Vector3.ProjectOnPlane(transform.position - target.transform.position, Vector3.up);
         Vector3 selfOffset = Vector3.ProjectOnPlane(transform.position, Vector3.up);
         Vector3 moveDirection = Vector3.zero;
 
@@ -392,7 +403,6 @@ public class ArenaBotController : MonoBehaviour
                 moveDirection += flatToGoal.normalized;
             }
 
-            Vector3 flatFromTarget = Vector3.ProjectOnPlane(transform.position - target.transform.position, Vector3.up);
             float distanceToTarget = flatFromTarget.magnitude;
             if (distanceToTarget < looseBallPlayerAvoidanceRadius && flatFromTarget.sqrMagnitude > 0.0001f)
             {
@@ -426,6 +436,7 @@ public class ArenaBotController : MonoBehaviour
         currentMoveDirection = Vector3.ClampMagnitude(moveDirection, 1f);
         currentAimPoint = looseBall != null ? looseBall.position : target.transform.position + Vector3.up * aimTargetHeight;
         RotateTowardAimPoint();
+        TryStartRollWhileRecoveringBall(flatFromTarget);
         ApplyMovement(currentMoveDirection, moveSpeed * looseBallMoveSpeedMultiplier);
     }
 
@@ -440,15 +451,28 @@ public class ArenaBotController : MonoBehaviour
             verticalVelocity += gravity * Time.deltaTime;
         }
 
-        Vector3 motion = moveDirection * moveSpeedMultiplier;
+        Vector3 planarMoveDirection = Vector3.ProjectOnPlane(moveDirection, Vector3.up);
+        Vector3 motion;
+        if (rollRemaining > 0f)
+        {
+            rollRemaining -= Time.deltaTime;
+            motion = rollDirection * rollSpeed;
+        }
+        else
+        {
+            motion = planarMoveDirection * moveSpeedMultiplier;
+        }
+
         motion.y = verticalVelocity;
         controller.Move(motion * Time.deltaTime);
 
         if (animator != null)
         {
             Vector3 planarVelocity = Vector3.ProjectOnPlane(controller.velocity, Vector3.up);
-            float normalizedMotion = moveSpeedMultiplier > 0.001f ? Mathf.Clamp01(planarVelocity.magnitude / moveSpeedMultiplier) : 0f;
-            Vector3 localMoveDirection = transform.InverseTransformDirection(Vector3.ProjectOnPlane(moveDirection, Vector3.up));
+            float animationSpeedDenominator = rollRemaining > 0f ? rollSpeed : moveSpeedMultiplier;
+            float normalizedMotion = animationSpeedDenominator > 0.001f ? Mathf.Clamp01(planarVelocity.magnitude / animationSpeedDenominator) : 0f;
+            Vector3 animationDirection = rollRemaining > 0f ? rollDirection : planarMoveDirection;
+            Vector3 localMoveDirection = transform.InverseTransformDirection(animationDirection);
             float moveTier = normalizedMotion > 0.85f ? 2f : 1f;
             float targetMoveX = Mathf.Clamp(localMoveDirection.x, -1f, 1f) * moveTier;
             float targetMoveY = Mathf.Clamp(localMoveDirection.z, -1f, 1f) * moveTier;
@@ -468,6 +492,71 @@ public class ArenaBotController : MonoBehaviour
         if (cooldownRemaining > 0f)
         {
             cooldownRemaining -= Time.deltaTime;
+        }
+    }
+
+    private void TickRollCooldown()
+    {
+        if (rollCooldownRemaining > 0f)
+        {
+            rollCooldownRemaining -= Time.deltaTime;
+        }
+    }
+
+    private void TryStartRollInCombat(float distanceToTarget)
+    {
+        if (currentState != BotState.Recover && distanceToTarget >= personalSpaceRange)
+        {
+            return;
+        }
+
+        Vector3 desiredRollDirection = currentMoveDirection.sqrMagnitude > 0.0001f
+            ? currentMoveDirection
+            : -transform.forward;
+        StartRoll(desiredRollDirection);
+    }
+
+    private void TryStartRollWhileRecoveringBall(Vector3 flatFromTarget)
+    {
+        if (flatFromTarget.sqrMagnitude < 0.0001f)
+        {
+            return;
+        }
+
+        float distanceToTarget = flatFromTarget.magnitude;
+        if (distanceToTarget >= looseBallPlayerAvoidanceRadius * 0.9f)
+        {
+            return;
+        }
+
+        StartRoll(flatFromTarget.normalized);
+    }
+
+    private void StartRoll(Vector3 desiredDirection)
+    {
+        if (rollRemaining > 0f || rollCooldownRemaining > 0f)
+        {
+            return;
+        }
+
+        if (!controller.isGrounded)
+        {
+            return;
+        }
+
+        Vector3 planarDirection = Vector3.ProjectOnPlane(desiredDirection, Vector3.up);
+        if (planarDirection.sqrMagnitude < 0.0001f)
+        {
+            planarDirection = -transform.forward;
+        }
+
+        rollDirection = planarDirection.normalized;
+        rollRemaining = rollDuration;
+        rollCooldownRemaining = rollCooldown;
+
+        if (animator != null)
+        {
+            animator.SetTrigger(rollHash);
         }
     }
 }

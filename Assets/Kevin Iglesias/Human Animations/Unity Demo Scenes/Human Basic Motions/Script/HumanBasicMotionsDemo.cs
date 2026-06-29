@@ -186,16 +186,6 @@ namespace KevinIglesias
             
             character.position = new Vector3(0, character.position.y, 0);
         }
-        private void FixedUpdate()
-        {
-            Vector3 correctedLightDir = cameraPivot.rotation * backgroundLightDir;
-            backgroundMaterial.SetVector("_LightDir", new Vector4(correctedLightDir.x, correctedLightDir.y, correctedLightDir.z, 0f));
-        }
-        private void LateUpdate()
-        {
-            Vector3 correctedLightDir = cameraPivot.rotation * backgroundLightDir;
-            backgroundMaterial.SetVector("_LightDir", new Vector4(correctedLightDir.x, correctedLightDir.y, correctedLightDir.z, 0f));
-        }
         private void OnDisable()
         {
             ResetBase();

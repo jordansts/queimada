@@ -23,6 +23,8 @@ namespace StarterAssets
 		private bool _jumpPressedThisFrame;
 		private bool _rollPressedThisFrame;
 		private bool _previousRollPressed;
+		private bool _keyboardMoveFallbackActive;
+		private bool _keyboardSprintFallbackActive;
 
 
 
@@ -66,6 +68,7 @@ namespace StarterAssets
 		private void Update()
 		{
 #if ENABLE_INPUT_SYSTEM
+			ApplyKeyboardFallback();
 			block = Mouse.current != null && Mouse.current.rightButton.isPressed;
 
 			bool rollPressed = Keyboard.current != null &&
@@ -99,9 +102,42 @@ namespace StarterAssets
 #endif
 		}
 
+#if ENABLE_INPUT_SYSTEM
+		private void ApplyKeyboardFallback()
+		{
+			if (Keyboard.current == null)
+			{
+				_keyboardMoveFallbackActive = false;
+				_keyboardSprintFallbackActive = false;
+				return;
+			}
+
+			Vector2 keyboardMove = new Vector2(
+				(Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed ? 1f : 0f) -
+				(Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed ? 1f : 0f),
+				(Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed ? 1f : 0f) -
+				(Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed ? 1f : 0f));
+			keyboardMove = Vector2.ClampMagnitude(keyboardMove, 1f);
+
+			if (keyboardMove != Vector2.zero || _keyboardMoveFallbackActive)
+			{
+				move = keyboardMove;
+				_keyboardMoveFallbackActive = keyboardMove != Vector2.zero;
+			}
+
+			bool keyboardSprint = Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
+			if (keyboardSprint || _keyboardSprintFallbackActive)
+			{
+				sprint = keyboardSprint;
+				_keyboardSprintFallbackActive = keyboardSprint;
+			}
+		}
+#endif
+
 		public void MoveInput(Vector2 newMoveDirection)
 		{
 			move = newMoveDirection;
+			_keyboardMoveFallbackActive = false;
 		} 
 
 		public void LookInput(Vector2 newLookDirection)
@@ -117,6 +153,7 @@ namespace StarterAssets
 		public void SprintInput(bool newSprintState)
 		{
 			sprint = newSprintState;
+			_keyboardSprintFallbackActive = false;
 		}
 
 		public bool ConsumeJumpPressedThisFrame()

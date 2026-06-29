@@ -58,12 +58,6 @@ public class ArenaPlayerActionAnimator : MonoBehaviour
             return;
         }
 
-        if (controller.IsRolling)
-        {
-            ApplyRollPose(controller.RollPoseWeight);
-            return;
-        }
-
         if (controller.IsBlocking)
         {
             ApplyBlockPose(1f);
@@ -137,24 +131,6 @@ public class ArenaPlayerActionAnimator : MonoBehaviour
         ApplyOffset(rightShoulder, new Vector3(-18f, -22f, -28f), weight);
         ApplyOffset(rightUpperArm, new Vector3(-42f, -36f, -58f), weight);
         ApplyOffset(rightLowerArm, new Vector3(-56f, -8f, -18f), weight);
-    }
-
-    private void ApplyRollPose(float weight)
-    {
-        ApplyOffset(hips, new Vector3(20f, 0f, 0f), weight);
-        ApplyOffset(spine, new Vector3(-34f, 0f, 0f), weight);
-        ApplyOffset(chest, new Vector3(-28f, 0f, 0f), weight);
-        ApplyOffset(head, new Vector3(-22f, 0f, 0f), weight);
-        ApplyOffset(leftShoulder, new Vector3(-44f, 30f, 34f), weight);
-        ApplyOffset(leftUpperArm, new Vector3(-68f, 42f, 60f), weight);
-        ApplyOffset(leftLowerArm, new Vector3(-66f, 16f, 20f), weight);
-        ApplyOffset(rightShoulder, new Vector3(-44f, -30f, -34f), weight);
-        ApplyOffset(rightUpperArm, new Vector3(-68f, -42f, -60f), weight);
-        ApplyOffset(rightLowerArm, new Vector3(-66f, -16f, -20f), weight);
-        ApplyOffset(leftUpperLeg, new Vector3(54f, 0f, 0f), weight);
-        ApplyOffset(leftLowerLeg, new Vector3(-82f, 0f, 0f), weight);
-        ApplyOffset(rightUpperLeg, new Vector3(54f, 0f, 0f), weight);
-        ApplyOffset(rightLowerLeg, new Vector3(-82f, 0f, 0f), weight);
     }
 
     private void ApplyDoubleJumpPose(float weight)

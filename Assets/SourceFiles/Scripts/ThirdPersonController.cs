@@ -90,22 +90,17 @@ namespace StarterAssets
         [Tooltip("For locking the camera position on all axis")]
         public bool LockCameraPosition = false;
 
-        public Vector2  LookSensitivity = new Vector2(7.5f, 5.0f);
+        public Vector2 LookSensitivity = new Vector2(7.5f, 5.0f);
         public bool InvertLookY = false;
 
-        // cinemachine
         private float _cinemachineTargetYaw;
         private float _cinemachineTargetPitch;
 
-        // Camera starting position and rotation
-private Vector3 _cameraStartingPosition;
-private Quaternion _cameraStartingRotation;
+        private Vector3 _cameraStartingPosition;
+        private Quaternion _cameraStartingRotation;
 
-// Variable to indicate if we are resetting the camera 
-public bool IsRespawning { get; set; } = false;
+        public bool IsRespawning { get; set; } = false;
 
-
-        // player
         private float _speed;
         private float _animationBlend;
         private float _targetRotation = 0.0f;
@@ -113,7 +108,6 @@ public bool IsRespawning { get; set; } = false;
         private float _verticalVelocity;
         private float _terminalVelocity = 53.0f;
 
-        // timeout deltatime
         private float _jumpTimeoutDelta;
         private float _fallTimeoutDelta;
         private float _rollTimer;
@@ -122,7 +116,6 @@ public bool IsRespawning { get; set; } = false;
         private float _moveXBlend;
         private float _moveYBlend;
 
-        // animation IDs
         private int _animIDSpeed;
         private int _animIDGrounded;
         private int _animIDJump;
@@ -130,6 +123,7 @@ public bool IsRespawning { get; set; } = false;
         private int _animIDMotionSpeed;
         private int _animIDMoveX;
         private int _animIDMoveY;
+        private int _animIDRoll;
 
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
@@ -157,15 +151,13 @@ public bool IsRespawning { get; set; } = false;
 #if ENABLE_INPUT_SYSTEM
                 return _playerInput.currentControlScheme == "KeyboardMouse";
 #else
-				return false;
+                return false;
 #endif
             }
         }
 
-
         private void Awake()
         {
-            // get a reference to our main camera
             if (_mainCamera == null)
             {
                 _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
@@ -173,30 +165,28 @@ public bool IsRespawning { get; set; } = false;
         }
 
         private void Start()
-{
-    _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+        {
+            _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
 
-    _hasAnimator = TryGetComponent(out _animator);
-    _controller = GetComponent<CharacterController>();
-    _input = GetComponent<StarterAssetsInputs>();
+            _hasAnimator = TryGetComponent(out _animator);
+            _controller = GetComponent<CharacterController>();
+            _input = GetComponent<StarterAssetsInputs>();
 #if ENABLE_INPUT_SYSTEM 
-    _playerInput = GetComponent<PlayerInput>();
+            _playerInput = GetComponent<PlayerInput>();
 #else
-	Debug.LogError("Starter Assets package is missing dependencies. Please use Tools/Starter Assets/Reinstall Dependencies to fix it");
+            Debug.LogError("Starter Assets package is missing dependencies. Please use Tools/Starter Assets/Reinstall Dependencies to fix it");
 #endif
-    
-    AssignAnimationIDs();
 
-    // Save the starting camera position and rotation
-    _cameraStartingPosition = CinemachineCameraTarget.transform.position;
-    _cameraStartingRotation = CinemachineCameraTarget.transform.rotation;
+            AssignAnimationIDs();
 
-    // reset our timeouts on start
-    _jumpTimeoutDelta = JumpTimeout;
-    _fallTimeoutDelta = FallTimeout;
-    _hasDoubleJumpAvailable = true;
-    _rollCooldownDelta = 0f;
-}
+            _cameraStartingPosition = CinemachineCameraTarget.transform.position;
+            _cameraStartingRotation = CinemachineCameraTarget.transform.rotation;
+
+            _jumpTimeoutDelta = JumpTimeout;
+            _fallTimeoutDelta = FallTimeout;
+            _hasDoubleJumpAvailable = true;
+            _rollCooldownDelta = 0f;
+        }
 
         private void Update()
         {
@@ -222,17 +212,14 @@ public bool IsRespawning { get; set; } = false;
             _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
             _animIDMoveX = Animator.StringToHash("MoveX");
             _animIDMoveY = Animator.StringToHash("MoveY");
+            _animIDRoll = Animator.StringToHash("Roll");
         }
 
         private void GroundedCheck()
         {
-            // set sphere position, with offset
-            Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset,
-                transform.position.z);
-            Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers,
-                QueryTriggerInteraction.Ignore);
+            Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
+            Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers, QueryTriggerInteraction.Ignore);
 
-            // update animator if using character
             if (_hasAnimator)
             {
                 _animator.SetBool(_animIDGrounded, Grounded);
@@ -240,40 +227,33 @@ public bool IsRespawning { get; set; } = false;
         }
 
         private void CameraRotation()
-{
-    // if respawning, reset to starting position and rotation
-    if (IsRespawning)
-    {
-        _cinemachineTargetYaw = 0f; // Reset yaw to zero (or configure as needed)
-        _cinemachineTargetPitch = 0f;
+        {
+            if (IsRespawning)
+            {
+                _cinemachineTargetYaw = 0f;
+                _cinemachineTargetPitch = 0f;
+                CinemachineCameraTarget.transform.position = _cameraStartingPosition;
+                CinemachineCameraTarget.transform.rotation = _cameraStartingRotation;
+                IsRespawning = false;
+                return;
+            }
 
-        // Reset Cinemachine Camera Target to its starting state
-        CinemachineCameraTarget.transform.position = _cameraStartingPosition;
-        CinemachineCameraTarget.transform.rotation = _cameraStartingRotation;
+            if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
+            {
+                float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
+                _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier * LookSensitivity.x;
+                float lookYDirection = InvertLookY ? -1f : 1f;
+                _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier * LookSensitivity.y * lookYDirection;
+            }
 
-        IsRespawning = false; // Reset the respawning flag
-        return;
-    }
+            _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
+            _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
 
-    // if there is an input and camera position is not fixed
-    if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
-    {
-        float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
-
-        _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier * LookSensitivity.x;
-        float lookYDirection = InvertLookY ? -1f : 1f;
-        _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier * LookSensitivity.y * lookYDirection;
-    }
-
-    _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
-    _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
-
-    CinemachineCameraTarget.transform.rotation = Quaternion.Euler(
-        _cinemachineTargetPitch + CameraAngleOverride,
-        _cinemachineTargetYaw,
-        0.0f
-    );
-}
+            CinemachineCameraTarget.transform.rotation = Quaternion.Euler(
+                _cinemachineTargetPitch + CameraAngleOverride,
+                _cinemachineTargetYaw,
+                0.0f);
+        }
 
         private void Move()
         {
@@ -283,37 +263,26 @@ public bool IsRespawning { get; set; } = false;
                 return;
             }
 
-            // set target speed based on move speed, sprint speed and if sprint is pressed
             float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
             if (IsBlocking)
             {
                 targetSpeed *= BlockMoveMultiplier;
             }
 
-            // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
+            if (_input.move == Vector2.zero)
+            {
+                targetSpeed = 0.0f;
+            }
 
-            // note: Vector2's == operator uses approximation so is not floating point error prone, and is cheaper than magnitude
-            // if there is no input, set the target speed to 0
-            if (_input.move == Vector2.zero) targetSpeed = 0.0f;
-
-            // a reference to the players current horizontal velocity
             float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
-
             float speedOffset = 0.1f;
             float inputMagnitude = _input.move == Vector2.zero
                 ? 0f
                 : (_input.analogMovement ? _input.move.magnitude : 1f);
 
-            // accelerate or decelerate to target speed
-            if (currentHorizontalSpeed < targetSpeed - speedOffset ||
-                currentHorizontalSpeed > targetSpeed + speedOffset)
+            if (currentHorizontalSpeed < targetSpeed - speedOffset || currentHorizontalSpeed > targetSpeed + speedOffset)
             {
-                // creates curved result rather than a linear one giving a more organic speed change
-                // note T in Lerp is clamped, so we don't need to clamp our speed
-                _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude,
-                    Time.deltaTime * SpeedChangeRate);
-
-                // round speed to 3 decimal places
+                _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude, Time.deltaTime * SpeedChangeRate);
                 _speed = Mathf.Round(_speed * 1000f) / 1000f;
             }
             else
@@ -322,18 +291,18 @@ public bool IsRespawning { get; set; } = false;
             }
 
             _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
-            if (_animationBlend < 0.01f) _animationBlend = 0f;
+            if (_animationBlend < 0.01f)
+            {
+                _animationBlend = 0f;
+            }
 
             float cameraYaw = GetCameraBasisYaw();
             _targetRotation = cameraYaw;
-            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
-                RotationSmoothTime);
+            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity, RotationSmoothTime);
             transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
 
-            Vector3 cameraForward = GetCameraPlanarForward();
-            Vector3 cameraRight = GetCameraPlanarRight();
-            cameraForward = Vector3.ProjectOnPlane(cameraForward, Vector3.up).normalized;
-            cameraRight = Vector3.ProjectOnPlane(cameraRight, Vector3.up).normalized;
+            Vector3 cameraForward = Vector3.ProjectOnPlane(GetCameraPlanarForward(), Vector3.up).normalized;
+            Vector3 cameraRight = Vector3.ProjectOnPlane(GetCameraPlanarRight(), Vector3.up).normalized;
 
             if (cameraForward.sqrMagnitude < 0.0001f)
             {
@@ -346,8 +315,7 @@ public bool IsRespawning { get; set; } = false;
             }
 
             Vector3 targetDirection = (cameraForward * _input.move.y + cameraRight * _input.move.x).normalized;
-
-            ApplyMovement(targetDirection.normalized, _speed, inputMagnitude, true);
+            ApplyMovement(targetDirection, _speed, inputMagnitude, true);
         }
 
         private void JumpAndGravity()
@@ -355,36 +323,29 @@ public bool IsRespawning { get; set; } = false;
             if (Grounded)
             {
                 _hasDoubleJumpAvailable = true;
-                // reset the fall timeout timer
                 _fallTimeoutDelta = FallTimeout;
 
-                // update animator if using character
                 if (_hasAnimator)
                 {
                     _animator.SetBool(_animIDJump, false);
                     _animator.SetBool(_animIDFreeFall, false);
                 }
 
-                // stop our velocity dropping infinitely when grounded
                 if (_verticalVelocity < 0.0f)
                 {
                     _verticalVelocity = -2f;
                 }
 
-                // Jump
                 if (_input.ConsumeJumpPressedThisFrame() && _jumpTimeoutDelta <= 0.0f)
                 {
-                    // the square root of H * -2 * G = how much velocity needed to reach desired height
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
 
-                    // update animator if using character
                     if (_hasAnimator)
                     {
                         _animator.SetBool(_animIDJump, true);
                     }
                 }
 
-                // jump timeout
                 if (_jumpTimeoutDelta >= 0.0f)
                 {
                     _jumpTimeoutDelta -= Time.deltaTime;
@@ -392,7 +353,6 @@ public bool IsRespawning { get; set; } = false;
             }
             else
             {
-                // reset the jump timeout timer
                 _jumpTimeoutDelta = JumpTimeout;
 
                 if (_input.ConsumeJumpPressedThisFrame() && _hasDoubleJumpAvailable)
@@ -408,23 +368,16 @@ public bool IsRespawning { get; set; } = false;
                     }
                 }
 
-                // fall timeout
                 if (_fallTimeoutDelta >= 0.0f)
                 {
                     _fallTimeoutDelta -= Time.deltaTime;
                 }
-                else
+                else if (_hasAnimator)
                 {
-                    // update animator if using character
-                    if (_hasAnimator)
-                    {
-                        _animator.SetBool(_animIDFreeFall, true);
-                    }
+                    _animator.SetBool(_animIDFreeFall, true);
                 }
-
             }
 
-            // apply gravity over time if under terminal (multiply by delta time twice to linearly speed up over time)
             if (_verticalVelocity < _terminalVelocity)
             {
                 _verticalVelocity += Gravity * Time.deltaTime;
@@ -465,21 +418,23 @@ public bool IsRespawning { get; set; } = false;
             _rollCooldownDelta = RollCooldown;
             IsBlocking = false;
 
-            Vector3 cameraForward = GetCameraPlanarForward();
-            Vector3 cameraRight = GetCameraPlanarRight();
-            cameraForward = Vector3.ProjectOnPlane(cameraForward, Vector3.up).normalized;
-            cameraRight = Vector3.ProjectOnPlane(cameraRight, Vector3.up).normalized;
+            Vector3 cameraForward = Vector3.ProjectOnPlane(GetCameraPlanarForward(), Vector3.up).normalized;
+            Vector3 cameraRight = Vector3.ProjectOnPlane(GetCameraPlanarRight(), Vector3.up).normalized;
 
             Vector3 desiredDirection = cameraForward * _input.move.y + cameraRight * _input.move.x;
             desiredDirection = Vector3.ProjectOnPlane(desiredDirection, Vector3.up).normalized;
             _rollDirection = desiredDirection.sqrMagnitude > 0.0001f ? desiredDirection : transform.forward;
             _rollDirection = Vector3.ProjectOnPlane(_rollDirection, Vector3.up).normalized;
+
+            if (_hasAnimator)
+            {
+                _animator.SetTrigger(_animIDRoll);
+            }
         }
 
         private void ApplyMovement(Vector3 direction, float horizontalSpeed, float inputMagnitude, bool useAnimationBlend)
         {
-            _controller.Move(direction * (horizontalSpeed * Time.deltaTime) +
-                             new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+            _controller.Move(direction * (horizontalSpeed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 
             if (_hasAnimator)
             {
@@ -494,11 +449,11 @@ public bool IsRespawning { get; set; } = false;
             }
         }
 
-        private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
+        private static float ClampAngle(float angle, float min, float max)
         {
-            if (lfAngle < -360f) lfAngle += 360f;
-            if (lfAngle > 360f) lfAngle -= 360f;
-            return Mathf.Clamp(lfAngle, lfMin, lfMax);
+            if (angle < -360f) angle += 360f;
+            if (angle > 360f) angle -= 360f;
+            return Mathf.Clamp(angle, min, max);
         }
 
         private void OnDrawGizmosSelected()
@@ -506,10 +461,7 @@ public bool IsRespawning { get; set; } = false;
             Color transparentGreen = new Color(0.0f, 1.0f, 0.0f, 0.35f);
             Color transparentRed = new Color(1.0f, 0.0f, 0.0f, 0.35f);
 
-            if (Grounded) Gizmos.color = transparentGreen;
-            else Gizmos.color = transparentRed;
-
-            // when selected, draw a gizmo in the position of, and matching radius of, the grounded collider
+            Gizmos.color = Grounded ? transparentGreen : transparentRed;
             Gizmos.DrawSphere(
                 new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
                 GroundedRadius);
@@ -517,16 +469,13 @@ public bool IsRespawning { get; set; } = false;
 
         private void OnFootstep(AnimationEvent animationEvent)
         {
-            if (animationEvent.animatorClipInfo.weight > 0.5f)
+            if (animationEvent.animatorClipInfo.weight > 0.5f && _controller != null && FootstepAudioClips != null && FootstepAudioClips.Length > 0)
             {
-                if (_controller != null && FootstepAudioClips != null && FootstepAudioClips.Length > 0)
+                int index = Random.Range(0, FootstepAudioClips.Length);
+                AudioClip clip = FootstepAudioClips[index];
+                if (clip != null)
                 {
-                    var index = Random.Range(0, FootstepAudioClips.Length);
-                    AudioClip clip = FootstepAudioClips[index];
-                    if (clip != null)
-                    {
-                        AudioSource.PlayClipAtPoint(clip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
-                    }
+                    AudioSource.PlayClipAtPoint(clip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
                 }
             }
         }
@@ -538,17 +487,14 @@ public bool IsRespawning { get; set; } = false;
                 AudioSource.PlayClipAtPoint(LandingAudioClip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
             }
         }
+
         public void ResetCameraRotation(float targetYaw)
-{
-    // Reset the yaw and pitch to default values (targetYaw for Y rotation, and 0 for pitch)
-    _cinemachineTargetYaw = targetYaw;
-    _cinemachineTargetPitch = 0f;
-
-    // Reset the camera target's rotation explicitly
-    CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch, _cinemachineTargetYaw, 0f);
-
-    Debug.Log($"Camera Yaw reset to {targetYaw} degrees.");
-}
+        {
+            _cinemachineTargetYaw = targetYaw;
+            _cinemachineTargetPitch = 0f;
+            CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch, _cinemachineTargetYaw, 0f);
+            Debug.Log($"Camera Yaw reset to {targetYaw} degrees.");
+        }
 
         public void ResetMotionState()
         {
@@ -562,6 +508,11 @@ public bool IsRespawning { get; set; } = false;
             IsBlocking = false;
             _moveXBlend = 0f;
             _moveYBlend = 0f;
+
+            if (_hasAnimator)
+            {
+                _animator.ResetTrigger(_animIDRoll);
+            }
         }
 
         private float GetCameraBasisYaw()
@@ -594,6 +545,4 @@ public bool IsRespawning { get; set; } = false;
             return _mainCamera != null ? _mainCamera.transform.right : transform.right;
         }
     }
-
-    
 }
