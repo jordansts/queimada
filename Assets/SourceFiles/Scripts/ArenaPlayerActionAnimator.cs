@@ -51,12 +51,12 @@ public class ArenaPlayerActionAnimator : MonoBehaviour
             return;
         }
 
-        RestoreBasePose();
-
         if (throwClipPlayer != null && throwClipPlayer.IsThrowing)
         {
             return;
         }
+
+        RestoreBasePose();
 
         if (controller.IsBlocking)
         {

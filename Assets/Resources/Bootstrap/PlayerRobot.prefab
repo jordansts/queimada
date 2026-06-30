@@ -1798,6 +1798,7 @@ GameObject:
   - component: {fileID: 3849205041736059348}
   - component: {fileID: 7888870423227802977}
   - component: {fileID: 1113369256212864554}
+  - component: {fileID: 6115901184023104414}
   m_Layer: 8
   m_Name: Robot
   m_TagString: Player
@@ -2085,6 +2086,20 @@ MonoBehaviour:
   yThreshold: -5
   vCam: {fileID: 6712355593683709296}
   respawnSound: {fileID: 8300000, guid: 55462452cb80442b6acf85f10b161e13, type: 3}
+--- !u!114 &6115901184023104414
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5633379113638269974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c6b24384217cbb948b0b4874b77be99b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  throwClip: {fileID: 3094330708855449807, guid: 96be620c323bdc7489d28dd60c80e08b, type: 3}
+  releaseNormalizedTime: 0.78
 --- !u!1 &5744773588333972899
 GameObject:
   m_ObjectHideFlags: 0
