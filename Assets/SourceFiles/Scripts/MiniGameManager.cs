@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using Unity.Cinemachine;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -125,12 +126,12 @@ public class MiniGameManager : MonoBehaviour
         EnsurePlayFieldSurfaceCollider();
         RebuildPlayFieldBoundaries();
         EnsureArenaLighting();
+        EnsureFallbackCamera();
         RefreshArenaLayout();
         ballService.Configure(ResolveGroundPosition, ballVisualScale, ballVisualRadius, ballBobbingAmount, ballGroundClearance);
         RemoveCollectibles();
         SpawnCombatants();
         SpawnArenaBall(GetArenaBallSpawnPoint());
-        EnsureFallbackCamera();
     }
 
     private void RemoveCollectibles()
@@ -468,10 +469,15 @@ public class MiniGameManager : MonoBehaviour
     {
         if (Camera.main != null)
         {
+            if (Camera.main.GetComponent<CinemachineBrain>() == null)
+            {
+                Camera.main.gameObject.AddComponent<CinemachineBrain>();
+            }
+
             return;
         }
 
-        GameObject fallbackCamera = new GameObject("FallbackMainCamera", typeof(Camera), typeof(AudioListener));
+        GameObject fallbackCamera = new GameObject("FallbackMainCamera", typeof(Camera), typeof(AudioListener), typeof(CinemachineBrain));
         fallbackCamera.tag = "MainCamera";
         fallbackCamera.transform.position = new Vector3(0f, 10f, -14f);
         fallbackCamera.transform.rotation = Quaternion.Euler(25f, 0f, 0f);

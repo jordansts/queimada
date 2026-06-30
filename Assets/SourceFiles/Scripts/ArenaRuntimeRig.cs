@@ -1,129 +1,106 @@
 using StarterAssets;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.Cinemachine;
 
 public class ArenaRuntimeRig : MonoBehaviour
 {
+    private const int ActivePlayerCameraPriority = 100;
+    private const int InactiveCameraPriority = 0;
+
     private Transform sceneRoot;
+    private CinemachineCamera followCamera;
+    private ThirdPersonController thirdPersonController;
+    private StarterAssetsInputs starterAssetsInputs;
+    private PlayerInput playerInput;
+    private RespawnPlayer respawnPlayer;
 
     public void Initialize(Transform runtimeSceneRoot, bool isPlayerControlled)
     {
         sceneRoot = runtimeSceneRoot != null ? runtimeSceneRoot : transform.root;
-        SetComponentEnabled<ThirdPersonController>(isPlayerControlled);
-        SetComponentEnabled<StarterAssetsInputs>(isPlayerControlled);
-        SetComponentEnabled<PlayerInput>(isPlayerControlled);
-        SetCameraRigActive(isPlayerControlled);
+        CacheReferences();
+        ConfigurePlayerControl(isPlayerControlled);
+        ConfigureCameraRig(isPlayerControlled);
     }
 
-    private void SetCameraRigActive(bool isActive)
+    private void CacheReferences()
+    {
+        thirdPersonController = GetComponent<ThirdPersonController>();
+        starterAssetsInputs = GetComponent<StarterAssetsInputs>();
+        playerInput = GetComponent<PlayerInput>();
+        respawnPlayer = GetComponent<RespawnPlayer>();
+        followCamera = ResolveFollowCamera();
+
+        if (thirdPersonController != null && thirdPersonController.CinemachineCameraTarget == null)
+        {
+            Transform cameraTarget = FindCameraTarget();
+            if (cameraTarget != null)
+            {
+                thirdPersonController.CinemachineCameraTarget = cameraTarget.gameObject;
+            }
+        }
+
+        if (respawnPlayer != null && followCamera != null)
+        {
+            respawnPlayer.vCam = followCamera;
+        }
+
+        if (playerInput != null)
+        {
+            playerInput.camera = Camera.main;
+        }
+    }
+
+    private void ConfigurePlayerControl(bool isPlayerControlled)
+    {
+        SetBehaviourEnabled(thirdPersonController, isPlayerControlled);
+        SetBehaviourEnabled(starterAssetsInputs, isPlayerControlled);
+        SetBehaviourEnabled(playerInput, isPlayerControlled);
+    }
+
+    private void ConfigureCameraRig(bool isPlayerControlled)
+    {
+        if (followCamera != null)
+        {
+            followCamera.enabled = isPlayerControlled;
+            followCamera.Priority = isPlayerControlled ? ActivePlayerCameraPriority : InactiveCameraPriority;
+        }
+    }
+
+    private CinemachineCamera ResolveFollowCamera()
     {
         if (sceneRoot == null)
         {
-            return;
+            return null;
         }
 
-        Camera primaryCamera = null;
-        foreach (Camera cameraComponent in sceneRoot.GetComponentsInChildren<Camera>(true))
-        {
-            if (cameraComponent != null && cameraComponent.name == "RobotCamera")
-            {
-                primaryCamera = cameraComponent;
-                break;
-            }
-        }
-
-        if (primaryCamera == null)
-        {
-            primaryCamera = sceneRoot.GetComponentInChildren<Camera>(true);
-        }
-
-        foreach (Camera cameraComponent in sceneRoot.GetComponentsInChildren<Camera>(true))
-        {
-            if (cameraComponent == null)
-            {
-                continue;
-            }
-
-            cameraComponent.enabled = isActive;
-            cameraComponent.gameObject.SetActive(isActive);
-            cameraComponent.gameObject.tag = isActive && cameraComponent == primaryCamera
-                ? "MainCamera"
-                : "Untagged";
-        }
-
-        SetPrimaryAudioListener(primaryCamera, isActive);
-
-        Transform followCamera = MiniGameManager.FindChildRecursive(sceneRoot, "PlayerFollowCamera");
-        if (followCamera != null)
-        {
-            followCamera.gameObject.SetActive(isActive);
-        }
-
-        if (!isActive)
-        {
-            return;
-        }
-
-        foreach (Camera cameraComponent in FindObjectsByType<Camera>(FindObjectsInactive.Include))
-        {
-            if (cameraComponent == null || cameraComponent.transform.IsChildOf(sceneRoot))
-            {
-                continue;
-            }
-
-            if (cameraComponent.CompareTag("MainCamera"))
-            {
-                cameraComponent.gameObject.tag = "Untagged";
-            }
-
-            if (cameraComponent.name == "Main Camera" || cameraComponent.name == "FallbackMainCamera")
-            {
-                cameraComponent.enabled = false;
-            }
-        }
+        Transform followCameraTransform = MiniGameManager.FindChildRecursive(sceneRoot, "PlayerFollowCamera");
+        return followCameraTransform != null ? followCameraTransform.GetComponent<CinemachineCamera>() : null;
     }
 
-
-    private void SetPrimaryAudioListener(Camera primaryCamera, bool isActive)
+    private Transform FindCameraTarget()
     {
-        AudioListener primaryListener = null;
-        if (isActive && primaryCamera != null)
+        if (sceneRoot == null)
         {
-            primaryListener = primaryCamera.GetComponent<AudioListener>();
+            return null;
         }
 
-        if (isActive && primaryListener == null)
+        foreach (Transform child in sceneRoot.GetComponentsInChildren<Transform>(true))
         {
-            primaryListener = sceneRoot.GetComponentInChildren<AudioListener>(true);
-        }
-
-        foreach (AudioListener listener in FindObjectsByType<AudioListener>(FindObjectsInactive.Include))
-        {
-            if (listener == null)
+            if (child.CompareTag("CinemachineTarget") || child.name == "PlayerCameraRoot")
             {
-                continue;
+                return child;
             }
-
-            if (!isActive)
-            {
-                if (listener.transform.IsChildOf(sceneRoot))
-                {
-                    listener.enabled = false;
-                }
-
-                continue;
-            }
-
-            listener.enabled = listener == primaryListener;
         }
+
+        return null;
     }
 
-    private void SetComponentEnabled<T>(bool isEnabled) where T : Behaviour
+    private static void SetBehaviourEnabled(Behaviour behaviour, bool isEnabled)
     {
-        T component = GetComponent<T>();
-        if (component != null)
+        if (behaviour != null)
         {
-            component.enabled = isEnabled;
+            behaviour.enabled = isEnabled;
         }
     }
 }

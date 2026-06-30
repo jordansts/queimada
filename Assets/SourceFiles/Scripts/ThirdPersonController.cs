@@ -158,16 +158,11 @@ namespace StarterAssets
 
         private void Awake()
         {
-            if (_mainCamera == null)
-            {
-                _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-            }
+            CacheMainCamera();
         }
 
         private void Start()
         {
-            _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
@@ -179,6 +174,14 @@ namespace StarterAssets
 
             AssignAnimationIDs();
 
+            if (!EnsureCameraReferences())
+            {
+                Debug.LogError($"ThirdPersonController on '{name}' could not resolve a camera target. Expected a child tagged 'CinemachineTarget' or named 'PlayerCameraRoot'.", this);
+                enabled = false;
+                return;
+            }
+
+            _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
             _cameraStartingPosition = CinemachineCameraTarget.transform.position;
             _cameraStartingRotation = CinemachineCameraTarget.transform.rotation;
 
@@ -228,6 +231,11 @@ namespace StarterAssets
 
         private void CameraRotation()
         {
+            if (!EnsureCameraReferences() || _input == null)
+            {
+                return;
+            }
+
             if (IsRespawning)
             {
                 _cinemachineTargetYaw = 0f;
@@ -242,7 +250,7 @@ namespace StarterAssets
             {
                 float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
                 _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier * LookSensitivity.x;
-                float lookYDirection = InvertLookY ? -1f : 1f;
+                float lookYDirection = InvertLookY ? 1f : -1f;
                 _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier * LookSensitivity.y * lookYDirection;
             }
 
@@ -490,6 +498,11 @@ namespace StarterAssets
 
         public void ResetCameraRotation(float targetYaw)
         {
+            if (!EnsureCameraReferences())
+            {
+                return;
+            }
+
             _cinemachineTargetYaw = targetYaw;
             _cinemachineTargetPitch = 0f;
             CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch, _cinemachineTargetYaw, 0f);
@@ -522,6 +535,7 @@ namespace StarterAssets
                 return CinemachineCameraTarget.transform.rotation.eulerAngles.y;
             }
 
+            CacheMainCamera();
             return _mainCamera != null ? _mainCamera.transform.eulerAngles.y : transform.eulerAngles.y;
         }
 
@@ -532,6 +546,7 @@ namespace StarterAssets
                 return CinemachineCameraTarget.transform.forward;
             }
 
+            CacheMainCamera();
             return _mainCamera != null ? _mainCamera.transform.forward : transform.forward;
         }
 
@@ -542,7 +557,78 @@ namespace StarterAssets
                 return CinemachineCameraTarget.transform.right;
             }
 
+            CacheMainCamera();
             return _mainCamera != null ? _mainCamera.transform.right : transform.right;
+        }
+
+        private bool EnsureCameraReferences()
+        {
+            if (CinemachineCameraTarget == null)
+            {
+                Transform taggedTarget = FindCameraTargetByTag(transform);
+                if (taggedTarget != null)
+                {
+                    CinemachineCameraTarget = taggedTarget.gameObject;
+                }
+                else
+                {
+                    Transform namedTarget = FindChildRecursive(transform, "PlayerCameraRoot");
+                    if (namedTarget != null)
+                    {
+                        CinemachineCameraTarget = namedTarget.gameObject;
+                    }
+                }
+            }
+
+            CacheMainCamera();
+            return CinemachineCameraTarget != null;
+        }
+
+        private void CacheMainCamera()
+        {
+            if (_mainCamera != null && _mainCamera.CompareTag("MainCamera") && _mainCamera.activeInHierarchy)
+            {
+                return;
+            }
+
+            Camera mainCameraComponent = Camera.main;
+            if (mainCameraComponent != null)
+            {
+                _mainCamera = mainCameraComponent.gameObject;
+                return;
+            }
+
+            GameObject taggedCamera = GameObject.FindGameObjectWithTag("MainCamera");
+            if (taggedCamera != null)
+            {
+                _mainCamera = taggedCamera;
+            }
+        }
+
+        private static Transform FindCameraTargetByTag(Transform root)
+        {
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.CompareTag("CinemachineTarget"))
+                {
+                    return child;
+                }
+            }
+
+            return null;
+        }
+
+        private static Transform FindChildRecursive(Transform root, string childName)
+        {
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == childName)
+                {
+                    return child;
+                }
+            }
+
+            return null;
         }
     }
 }

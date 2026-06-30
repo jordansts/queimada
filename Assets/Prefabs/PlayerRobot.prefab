@@ -1968,7 +1968,7 @@ MonoBehaviour:
   m_ActionEvents:
   - m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 2563429732134213952}
+      - m_Target: {fileID: 1764945173950795790}
         m_TargetAssemblyTypeName: 
         m_MethodName: InputMove
         m_Mode: 0
@@ -1984,7 +1984,7 @@ MonoBehaviour:
     m_ActionName: 'Player/Move[/Keyboard/w,/Keyboard/s,/Keyboard/a,/Keyboard/d,/Keyboard/upArrow,/Keyboard/downArrow,/Keyboard/leftArrow,/Keyboard/rightArrow,/XInputControllerWindows/leftStick]'
   - m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 2563429732134213952}
+      - m_Target: {fileID: 1764945173950795790}
         m_TargetAssemblyTypeName: 
         m_MethodName: InputLook
         m_Mode: 0
@@ -2000,7 +2000,7 @@ MonoBehaviour:
     m_ActionName: 'Player/Look[/Mouse/delta,/XInputControllerWindows/rightStick]'
   - m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 2563429732134213952}
+      - m_Target: {fileID: 1764945173950795790}
         m_TargetAssemblyTypeName: 
         m_MethodName: InputJump
         m_Mode: 0
@@ -2016,7 +2016,7 @@ MonoBehaviour:
     m_ActionName: 'Player/Jump[/Keyboard/space,/XInputControllerWindows/buttonSouth]'
   - m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 2563429732134213952}
+      - m_Target: {fileID: 1764945173950795790}
         m_TargetAssemblyTypeName: 
         m_MethodName: InputSprint
         m_Mode: 0
@@ -2069,7 +2069,7 @@ AudioListener:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5633379113638269974}
-  m_Enabled: 1
+  m_Enabled: 0
 --- !u!114 &1113369256212864554
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2099,7 +2099,7 @@ GameObject:
   - component: {fileID: 4300547424136906431}
   m_Layer: 0
   m_Name: RobotCamera
-  m_TagString: MainCamera
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -2126,7 +2126,7 @@ Camera:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5744773588333972899}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
   m_ClearFlags: 1
   m_BackGroundColor: {r: 0.972549, g: 0.95686275, b: 0.92941177, a: 0}
@@ -2177,7 +2177,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5744773588333972899}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 72ece51f2901e7445ab60da3685d6b5f, type: 3}
   m_Name: 
