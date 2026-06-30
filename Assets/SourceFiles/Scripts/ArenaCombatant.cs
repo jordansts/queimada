@@ -6,7 +6,6 @@ public class ArenaCombatant : MonoBehaviour
 {
     private const float BlockDamageMultiplier = 0.35f;
     private const float BlockKnockbackMultiplier = 0.55f;
-    private static readonly Vector3 HeldBallLocalPosition = new Vector3(0.01f, -0.02f, -0.02f);
 
     [SerializeField] private float maxHealth = 100f;
 
@@ -47,10 +46,11 @@ public class ArenaCombatant : MonoBehaviour
         Opponent = opponent;
     }
 
-    public void SetAttachmentPoints(Transform heldBallAnchor, Transform throwOrigin)
+    public void SetAttachmentPoints(Transform heldBallAnchor, Transform throwOrigin, GameObject existingHeldBallVisual)
     {
         HeldBallAnchor = heldBallAnchor;
         ThrowOrigin = throwOrigin;
+        heldBallVisual = existingHeldBallVisual;
         EnsureHeldBallVisual();
         UpdateHeldBallVisual();
     }
@@ -126,35 +126,37 @@ public class ArenaCombatant : MonoBehaviour
             return;
         }
 
-        if (MiniGameManager.Instance != null)
+        Transform existingHeldBall = HeldBallAnchor.Find("HeldArenaBall");
+        heldBallVisual = existingHeldBall != null ? existingHeldBall.gameObject : null;
+        if (heldBallVisual == null)
         {
-            heldBallVisual = MiniGameManager.Instance.CreateArenaBallVisualInstance(false, "HeldArenaBall");
-        }
-        else
-        {
-            heldBallVisual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            heldBallVisual.name = "HeldArenaBall";
-            heldBallVisual.transform.localScale = GetHeldBallLocalScale();
+            Debug.LogError($"ArenaCombatant on '{name}' is missing HeldArenaBall under HeldBallAnchor.", this);
+            return;
         }
 
         heldBallVisual.transform.SetParent(HeldBallAnchor, false);
-        heldBallVisual.transform.localPosition = HeldBallLocalPosition;
         heldBallVisual.transform.localRotation = Quaternion.identity;
-        heldBallVisual.transform.localScale = GetHeldBallLocalScale();
-
-        Collider collider = heldBallVisual.GetComponent<Collider>();
-        if (collider != null)
-        {
-            Destroy(collider);
-        }
+        ApplyHeldBallTransform();
     }
 
     private void UpdateHeldBallVisual()
     {
         if (heldBallVisual != null)
         {
+            ApplyHeldBallTransform();
             heldBallVisual.SetActive(HasBall);
         }
+    }
+
+    private void ApplyHeldBallTransform()
+    {
+        if (heldBallVisual == null || HeldBallAnchor == null)
+        {
+            return;
+        }
+
+        heldBallVisual.transform.localRotation = Quaternion.identity;
+        heldBallVisual.transform.localScale = GetHeldBallLocalScale();
     }
 
     private Vector3 GetHeldBallLocalScale()

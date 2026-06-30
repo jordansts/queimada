@@ -5,14 +5,12 @@ using UnityEditor;
 
 public class ArenaBallService : MonoBehaviour
 {
-    private const string BasketBallPrefabPath = "MarpaStudio/Built-In/Prefabs/BasketBall";
     private const string ArenaBallRuntimePrefabPath = "Arena/ArenaBallRuntime";
 
     public Transform CurrentLooseBallTransform => currentLooseBall != null ? currentLooseBall.transform : null;
     public float VisualScale => visualScale;
 
     private ArenaBallPickup currentLooseBall;
-    private GameObject basketBallPrefab;
     private GameObject runtimeBallPrefab;
     private System.Func<Vector3, Vector3> groundResolver;
     private float visualScale;
@@ -95,7 +93,6 @@ public class ArenaBallService : MonoBehaviour
             projectile.enabled = false;
         }
 
-        currentLooseBall.enabled = true;
         currentLooseBall.Initialize(spawnPosition, pickupDelay, true, true);
     }
 
@@ -108,49 +105,6 @@ public class ArenaBallService : MonoBehaviour
 
         Destroy(currentLooseBall.gameObject);
         currentLooseBall = null;
-    }
-
-    public GameObject CreateArenaBallVisualInstance(bool includePickupCollider, string objectName)
-    {
-        GameObject ballObject;
-        if (basketBallPrefab != null)
-        {
-            ballObject = Instantiate(basketBallPrefab);
-            ballObject.name = objectName;
-            ballObject.transform.localScale = Vector3.one * visualScale;
-
-            foreach (Collider existingCollider in ballObject.GetComponentsInChildren<Collider>(true))
-            {
-                Destroy(existingCollider);
-            }
-        }
-        else
-        {
-            ballObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            ballObject.name = objectName;
-            ballObject.transform.localScale = Vector3.one * visualScale;
-
-            Renderer renderer = ballObject.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material.color = new Color(1f, 0.85f, 0.2f);
-            }
-        }
-
-        if (!includePickupCollider)
-        {
-            return ballObject;
-        }
-
-        SphereCollider pickupCollider = ballObject.GetComponent<SphereCollider>();
-        if (pickupCollider == null)
-        {
-            pickupCollider = ballObject.AddComponent<SphereCollider>();
-        }
-
-        pickupCollider.isTrigger = true;
-        pickupCollider.radius = 0.5f;
-        return ballObject;
     }
 
     public GameObject CreateArenaBallInstance(string objectName)
@@ -175,27 +129,13 @@ public class ArenaBallService : MonoBehaviour
 
     private void CacheBallPrefab()
     {
-        if (basketBallPrefab != null)
+        if (runtimeBallPrefab != null)
         {
-            if (runtimeBallPrefab != null)
-            {
-                return;
-            }
+            return;
         }
 
-        basketBallPrefab = Resources.Load<GameObject>(BasketBallPrefabPath);
         runtimeBallPrefab = Resources.Load<GameObject>(ArenaBallRuntimePrefabPath);
-        if (basketBallPrefab == null)
-        {
-            basketBallPrefab = Resources.Load<GameObject>("BasketBall");
-        }
 #if UNITY_EDITOR
-        if (basketBallPrefab == null)
-        {
-            basketBallPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                "Assets/MarpaStudio/Built-In/Prefabs/BasketBall.prefab");
-        }
-
         if (runtimeBallPrefab == null)
         {
             runtimeBallPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(

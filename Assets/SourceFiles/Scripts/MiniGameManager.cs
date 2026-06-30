@@ -341,11 +341,48 @@ public class MiniGameManager : MonoBehaviour
         Vector3 alignedSpawnPosition = actor.transform.position;
         combatant.Initialize(displayName, isPlayerControlled, alignedSpawnPosition, spawnRotation, knockbackMotor);
 
-        Transform heldBallAnchor = BuildHeldBallAnchor(actor.transform);
-        Transform throwOrigin = BuildThrowOrigin(actor.transform);
-        combatant.SetAttachmentPoints(heldBallAnchor, throwOrigin);
+        ArenaBallAttachmentPoints attachmentPoints = ResolveBallAttachmentPoints(actor.transform);
+        combatant.SetAttachmentPoints(
+            attachmentPoints != null ? attachmentPoints.HeldBallAnchor : null,
+            attachmentPoints != null ? attachmentPoints.ThrowOrigin : null,
+            attachmentPoints != null ? attachmentPoints.HeldBallVisual : null);
 
         return combatant;
+    }
+
+    private ArenaBallAttachmentPoints ResolveBallAttachmentPoints(Transform root)
+    {
+        ArenaBallAttachmentPoints attachmentPoints = root.GetComponentInChildren<ArenaBallAttachmentPoints>(true);
+        if (attachmentPoints != null &&
+            attachmentPoints.HeldBallAnchor != null &&
+            attachmentPoints.ThrowOrigin != null &&
+            attachmentPoints.HeldBallVisual != null)
+        {
+            return attachmentPoints;
+        }
+
+        Debug.LogWarning(
+            $"MiniGameManager is rebuilding ball attachment points at runtime for '{root.name}'. " +
+            "Run Tools/Arena/Rebuild Held Ball Prefabs to persist the proper Unity-side setup.",
+            root);
+
+        Transform heldBallAnchor = BuildHeldBallAnchor(root);
+        Transform throwOrigin = BuildThrowOrigin(root);
+        GameObject heldBallVisual = heldBallAnchor != null ? heldBallAnchor.Find("HeldArenaBall")?.gameObject : null;
+
+        if (heldBallVisual == null)
+        {
+            Debug.LogError($"MiniGameManager could not find HeldArenaBall for '{root.name}'. Run Tools/Arena/Rebuild Held Ball Prefabs.");
+        }
+
+        if (attachmentPoints == null)
+        {
+            attachmentPoints = root.gameObject.AddComponent<ArenaBallAttachmentPoints>();
+        }
+
+        attachmentPoints.Configure(heldBallAnchor, throwOrigin, heldBallVisual);
+
+        return attachmentPoints;
     }
 
     private Transform BuildHeldBallAnchor(Transform root)
@@ -362,15 +399,7 @@ public class MiniGameManager : MonoBehaviour
             return existingHeldBallAnchor;
         }
 
-        Transform hand = FindChildRecursive(root, "Right_Hand");
-        if (hand == null)
-        {
-            hand = FindChildRecursive(root, "RightHand");
-        }
-        if (hand == null)
-        {
-            hand = FindChildRecursive(root, "B-hand.R");
-        }
+        Transform hand = FindPreferredRightHand(root);
         if (hand == null)
         {
             hand = root;
@@ -378,7 +407,7 @@ public class MiniGameManager : MonoBehaviour
 
         GameObject heldBallAnchor = new GameObject("HeldBallAnchor");
         heldBallAnchor.transform.SetParent(hand, false);
-        heldBallAnchor.transform.localPosition = new Vector3(0.02f, 0.01f, 0.16f);
+        heldBallAnchor.transform.localPosition = CalculatePalmAnchorLocalPosition(root, hand);
         heldBallAnchor.transform.localRotation = Quaternion.identity;
 
         return heldBallAnchor.transform;
@@ -393,11 +422,82 @@ public class MiniGameManager : MonoBehaviour
         }
 
         GameObject throwOrigin = new GameObject("ThrowOrigin");
-        throwOrigin.transform.SetParent(root, false);
-        throwOrigin.transform.localPosition = new Vector3(0.18f, 1.22f, 0.42f);
+        Transform hand = FindPreferredRightHand(root);
+        throwOrigin.transform.SetParent(hand != null ? hand : root, false);
+        throwOrigin.transform.localPosition = CalculatePalmAnchorLocalPosition(root, throwOrigin.transform.parent) + new Vector3(0f, 0f, 0.02f);
         throwOrigin.transform.localRotation = Quaternion.identity;
 
         return throwOrigin.transform;
+    }
+
+    private static Transform FindPreferredRightHand(Transform root)
+    {
+        Transform handProp = FindChildRecursive(root, "B-handProp.R");
+        if (handProp != null)
+        {
+            return handProp;
+        }
+
+        Transform hand = FindChildRecursive(root, "Right_Hand");
+        if (hand != null)
+        {
+            return hand;
+        }
+
+        hand = FindChildRecursive(root, "RightHand");
+        if (hand != null)
+        {
+            return hand;
+        }
+
+        return FindChildRecursive(root, "B-hand.R");
+    }
+
+    private static Vector3 CalculatePalmAnchorLocalPosition(Transform root, Transform hand)
+    {
+        if (root == null || hand == null)
+        {
+            return Vector3.zero;
+        }
+
+        string[] fingerNames =
+        {
+            "Right_IndexProximal",
+            "Right_MiddleProximal",
+            "Right_RingProximal",
+            "Right_PinkyProximal"
+        };
+
+        Vector3 fingerAverage = Vector3.zero;
+        int fingerCount = 0;
+        for (int i = 0; i < fingerNames.Length; i++)
+        {
+            Transform finger = FindChildRecursive(root, fingerNames[i]);
+            if (finger == null)
+            {
+                continue;
+            }
+
+            fingerAverage += hand.InverseTransformPoint(finger.position);
+            fingerCount++;
+        }
+
+        if (fingerCount == 0)
+        {
+            return new Vector3(0.02f, 0.01f, 0.16f);
+        }
+
+        Vector3 anchorLocalPosition = fingerAverage / fingerCount;
+        Transform thumb = FindChildRecursive(root, "Right_ThumbProximal");
+        if (thumb != null)
+        {
+            Vector3 thumbLocalPosition = hand.InverseTransformPoint(thumb.position);
+            anchorLocalPosition = Vector3.Lerp(anchorLocalPosition, thumbLocalPosition, 0.18f);
+        }
+
+        anchorLocalPosition *= 0.82f;
+        anchorLocalPosition += new Vector3(0f, 0f, 0.015f);
+        return anchorLocalPosition;
     }
 
     private Vector3 ResolveCombatantSpawnPosition(GameObject actorPrefab, Vector3 desiredPosition)
@@ -1128,13 +1228,6 @@ public class MiniGameManager : MonoBehaviour
         float clampedX = Mathf.Clamp(desiredPosition.x, bounds.min.x, bounds.max.x);
         float clampedZ = Mathf.Clamp(desiredPosition.z, bounds.min.z, bounds.max.z);
         return new Vector3(clampedX, bounds.max.y, clampedZ);
-    }
-
-    public GameObject CreateArenaBallVisualInstance(bool includePickupCollider, string objectName)
-    {
-        return ballService != null
-            ? ballService.CreateArenaBallVisualInstance(includePickupCollider, objectName)
-            : null;
     }
 
     public GameObject CreateArenaBallInstance(string objectName)
