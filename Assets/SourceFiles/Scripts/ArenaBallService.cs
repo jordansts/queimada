@@ -6,12 +6,14 @@ using UnityEditor;
 public class ArenaBallService : MonoBehaviour
 {
     private const string BasketBallPrefabPath = "MarpaStudio/Built-In/Prefabs/BasketBall";
+    private const string ArenaBallRuntimePrefabPath = "Arena/ArenaBallRuntime";
 
     public Transform CurrentLooseBallTransform => currentLooseBall != null ? currentLooseBall.transform : null;
     public float VisualScale => visualScale;
 
     private ArenaBallPickup currentLooseBall;
     private GameObject basketBallPrefab;
+    private GameObject runtimeBallPrefab;
     private System.Func<Vector3, Vector3> groundResolver;
     private float visualScale;
     private float visualRadius;
@@ -69,12 +71,32 @@ public class ArenaBallService : MonoBehaviour
         ClearLooseBall();
 
         Vector3 groundedPosition = ResolveGroundPosition(position);
-        GameObject ballObject = CreateArenaBallVisualInstance(true, "ArenaBallPickup");
-        float safeBallHeight = groundedPosition.y + visualRadius + bobbingAmount + groundClearance;
-        ballObject.transform.position = new Vector3(groundedPosition.x, safeBallHeight, groundedPosition.z);
+        GameObject ballObject = CreateArenaBallInstance("ArenaBallPickup");
+        if (ballObject == null)
+        {
+            return;
+        }
 
-        currentLooseBall = ballObject.AddComponent<ArenaBallPickup>();
-        currentLooseBall.Initialize(ballObject.transform.position, pickupDelay, true);
+        float safeBallHeight = groundedPosition.y + visualRadius + bobbingAmount + groundClearance;
+        Vector3 spawnPosition = new Vector3(groundedPosition.x, safeBallHeight, groundedPosition.z);
+        ballObject.transform.position = spawnPosition;
+
+        currentLooseBall = ballObject.GetComponent<ArenaBallPickup>();
+        if (currentLooseBall == null)
+        {
+            Debug.LogError("ArenaBallRuntime prefab is missing ArenaBallPickup.");
+            Destroy(ballObject);
+            return;
+        }
+
+        ArenaProjectile projectile = ballObject.GetComponent<ArenaProjectile>();
+        if (projectile != null)
+        {
+            projectile.enabled = false;
+        }
+
+        currentLooseBall.enabled = true;
+        currentLooseBall.Initialize(spawnPosition, pickupDelay, true, true);
     }
 
     public void ClearLooseBall()
@@ -131,6 +153,21 @@ public class ArenaBallService : MonoBehaviour
         return ballObject;
     }
 
+    public GameObject CreateArenaBallInstance(string objectName)
+    {
+        CacheBallPrefab();
+        if (runtimeBallPrefab == null)
+        {
+            Debug.LogError("ArenaBallRuntime prefab could not be loaded. Run Tools/Arena/Rebuild Arena Ball Runtime Prefab.");
+            return null;
+        }
+
+        GameObject ballObject = Instantiate(runtimeBallPrefab);
+        ballObject.name = objectName;
+        ballObject.transform.localScale = Vector3.one * visualScale;
+        return ballObject;
+    }
+
     private Vector3 ResolveGroundPosition(Vector3 desiredPosition)
     {
         return groundResolver != null ? groundResolver(desiredPosition) : desiredPosition;
@@ -140,10 +177,14 @@ public class ArenaBallService : MonoBehaviour
     {
         if (basketBallPrefab != null)
         {
-            return;
+            if (runtimeBallPrefab != null)
+            {
+                return;
+            }
         }
 
         basketBallPrefab = Resources.Load<GameObject>(BasketBallPrefabPath);
+        runtimeBallPrefab = Resources.Load<GameObject>(ArenaBallRuntimePrefabPath);
         if (basketBallPrefab == null)
         {
             basketBallPrefab = Resources.Load<GameObject>("BasketBall");
@@ -153,6 +194,12 @@ public class ArenaBallService : MonoBehaviour
         {
             basketBallPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/MarpaStudio/Built-In/Prefabs/BasketBall.prefab");
+        }
+
+        if (runtimeBallPrefab == null)
+        {
+            runtimeBallPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/SourceFiles/Resources/Arena/ArenaBallRuntime.prefab");
         }
 #endif
     }

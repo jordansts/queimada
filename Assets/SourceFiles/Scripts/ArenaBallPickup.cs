@@ -15,13 +15,33 @@ public class ArenaBallPickup : MonoBehaviour
     private bool useFloatingMotion = true;
     private Rigidbody attachedRigidbody;
 
-    public void Initialize(Vector3 groundedPosition, float pickupDelay, bool useFloatingMotion = true)
+    public void Initialize(Vector3 groundedPosition, float pickupDelay, bool useFloatingMotion = true, bool useTriggerCollider = true)
     {
+        claimed = false;
+        timer = 0f;
         startPosition = groundedPosition;
         transform.position = groundedPosition;
         pickupDelayRemaining = pickupDelay;
         this.useFloatingMotion = useFloatingMotion;
         attachedRigidbody = GetComponent<Rigidbody>();
+
+        SphereCollider sphereCollider = GetComponent<SphereCollider>();
+        if (sphereCollider != null)
+        {
+            sphereCollider.isTrigger = useTriggerCollider;
+        }
+
+        if (attachedRigidbody != null)
+        {
+            attachedRigidbody.useGravity = !useFloatingMotion;
+            attachedRigidbody.isKinematic = useFloatingMotion;
+
+            if (useFloatingMotion)
+            {
+                attachedRigidbody.linearVelocity = Vector3.zero;
+                attachedRigidbody.angularVelocity = Vector3.zero;
+            }
+        }
     }
 
     private void Start()

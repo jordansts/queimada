@@ -1166,4 +1166,11 @@ public class MiniGameManager : MonoBehaviour
             : null;
     }
 
+    public GameObject CreateArenaBallInstance(string objectName)
+    {
+        return ballService != null
+            ? ballService.CreateArenaBallInstance(objectName)
+            : null;
+    }
+
 }

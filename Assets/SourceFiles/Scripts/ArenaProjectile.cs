@@ -27,6 +27,9 @@ public class ArenaProjectile : MonoBehaviour
 
     public void Initialize(ArenaCombatant owner, Vector3 initialVelocity, float damage, float knockbackForce, bool useGravityWhileThrown)
     {
+        enabled = true;
+        resolved = false;
+        hasBecomePickup = false;
         this.owner = owner;
         this.damage = damage;
         this.knockbackForce = knockbackForce;
@@ -55,7 +58,11 @@ public class ArenaProjectile : MonoBehaviour
             }
         }
 
+        sphereCollider.isTrigger = false;
         projectileRigidbody.useGravity = useGravityWhileThrown;
+        projectileRigidbody.isKinematic = false;
+        projectileRigidbody.detectCollisions = true;
+        projectileRigidbody.linearDamping = useGravityWhileThrown ? 0.06f : 0f;
         projectileRigidbody.linearVelocity = initialVelocity;
         projectileRigidbody.angularVelocity = Random.onUnitSphere * 12f;
 
@@ -188,10 +195,14 @@ public class ArenaProjectile : MonoBehaviour
         ArenaBallPickup pickup = GetComponent<ArenaBallPickup>();
         if (pickup == null)
         {
-            pickup = gameObject.AddComponent<ArenaBallPickup>();
+            Debug.LogError("ArenaBallRuntime prefab is missing ArenaBallPickup.");
+            ResolveIntoPickup(position, 0f);
+            return;
         }
 
-        pickup.Initialize(position, 0f, false);
+        pickup.enabled = true;
+        pickup.Initialize(position, 0f, false, false);
+        enabled = false;
         MiniGameManager.Instance?.RegisterLooseArenaBall(pickup);
     }
 
