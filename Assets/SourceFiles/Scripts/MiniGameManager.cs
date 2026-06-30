@@ -129,17 +129,8 @@ public class MiniGameManager : MonoBehaviour
         EnsureFallbackCamera();
         RefreshArenaLayout();
         ballService.Configure(ResolveGroundPosition, ballVisualScale, ballVisualRadius, ballBobbingAmount, ballGroundClearance);
-        RemoveCollectibles();
         SpawnCombatants();
         SpawnArenaBall(GetArenaBallSpawnPoint());
-    }
-
-    private void RemoveCollectibles()
-    {
-        foreach (Pickup pickup in FindObjectsByType<Pickup>())
-        {
-            Destroy(pickup.gameObject);
-        }
     }
 
     private void SpawnCombatants()
@@ -307,7 +298,6 @@ public class MiniGameManager : MonoBehaviour
         GameObject actorRoot = GetActorRoot(sceneRoot);
         actorRoot.tag = "Player";
 
-        SetComponentEnabled<RespawnPlayer>(actorRoot, false);
         ConfigureGroundMask(actorRoot);
         GetOrAddComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, true);
 
@@ -327,7 +317,6 @@ public class MiniGameManager : MonoBehaviour
         GameObject actorRoot = GetActorRoot(sceneRoot);
         actorRoot.tag = "Untagged";
 
-        SetComponentEnabled<RespawnPlayer>(actorRoot, false);
         ConfigureGroundMask(actorRoot);
         GetOrAddComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, false);
         ApplyBotVisualMaterial(sceneRoot);
@@ -548,20 +537,6 @@ public class MiniGameManager : MonoBehaviour
         }
 
         victim.Respawn();
-    }
-
-    public void RegisterPickupCollected(Pickup pickup)
-    {
-    }
-
-    public void RegisterRespawn()
-    {
-    }
-
-    public string GetHudText()
-    {
-        string enemyStatus = BotCombatant != null && BotCombatant.gameObject.activeSelf ? "ativo" : "desativado";
-        return $"F arremessa, mouse direito defende, Ctrl rola, espaco faz double jump. Pegue a bola e cause dano.  Debug: F2 inimigo {enemyStatus}, F3 recuperar bola.";
     }
 
     private void OnGUI()

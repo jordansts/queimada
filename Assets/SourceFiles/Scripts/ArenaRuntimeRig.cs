@@ -13,7 +13,6 @@ public class ArenaRuntimeRig : MonoBehaviour
     private ThirdPersonController thirdPersonController;
     private StarterAssetsInputs starterAssetsInputs;
     private PlayerInput playerInput;
-    private RespawnPlayer respawnPlayer;
 
     public void Initialize(Transform runtimeSceneRoot, bool isPlayerControlled)
     {
@@ -28,7 +27,6 @@ public class ArenaRuntimeRig : MonoBehaviour
         thirdPersonController = GetComponent<ThirdPersonController>();
         starterAssetsInputs = GetComponent<StarterAssetsInputs>();
         playerInput = GetComponent<PlayerInput>();
-        respawnPlayer = GetComponent<RespawnPlayer>();
         followCamera = ResolveFollowCamera();
 
         if (thirdPersonController != null && thirdPersonController.CinemachineCameraTarget == null)
@@ -38,11 +36,6 @@ public class ArenaRuntimeRig : MonoBehaviour
             {
                 thirdPersonController.CinemachineCameraTarget = cameraTarget.gameObject;
             }
-        }
-
-        if (respawnPlayer != null && followCamera != null)
-        {
-            respawnPlayer.vCam = followCamera;
         }
 
         if (playerInput != null)
