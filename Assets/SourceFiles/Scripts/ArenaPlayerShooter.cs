@@ -71,7 +71,6 @@ public class ArenaPlayerShooter : MonoBehaviour
         throwClipPlayer?.PlayThrow();
         currentAimPoint = ResolveAimPoint(GetThrowOriginPosition());
         queuedAimPoint = currentAimPoint;
-        owner.RemoveBall();
         throwReleaseTimer = throwClipPlayer != null ? throwClipPlayer.ReleaseDelay : 0f;
         throwQueued = true;
     }
@@ -143,7 +142,7 @@ public class ArenaPlayerShooter : MonoBehaviour
         }
 
         throwQueued = false;
-        if (owner == null)
+        if (owner == null || !owner.HasBall)
         {
             return;
         }
@@ -158,6 +157,7 @@ public class ArenaPlayerShooter : MonoBehaviour
         }
 
         spawnPosition += direction * 0.4f;
+        owner.RemoveBall();
         ArenaProjectileFactory.CreateProjectile(
             "PlayerProjectile",
             owner,

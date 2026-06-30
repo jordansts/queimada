@@ -14,6 +14,7 @@ public class MiniGameManager : MonoBehaviour
     private const string PlayFieldRootName = "PlayField";
     private const string PlayerSceneRootName = "PlayerRobotScene";
     private const string BotSceneRootName = "AIRobotScene";
+    private const string ArenaHudPrefabPath = "UI/ArenaHudCanvas";
 
     public static MiniGameManager Instance { get; private set; }
 
@@ -40,6 +41,8 @@ public class MiniGameManager : MonoBehaviour
     private readonly Vector3 playerArenaSpawn = new Vector3(-6.88f, 7.2f, -7.29f);
     private readonly Vector3 botArenaSpawn = new Vector3(7.41f, 6.78f, -2.91f);
     private readonly Color crosshairColor = new Color(0.35f, 0.95f, 1f, 0.95f);
+    private readonly Color playerHudColor = new Color(0.25f, 0.9f, 1f);
+    private readonly Color botHudColor = new Color(1f, 0.4f, 0.2f);
     private bool scenePrepared;
     private ArenaLayout arenaLayout;
     private Transform arenaRoot;
@@ -47,6 +50,7 @@ public class MiniGameManager : MonoBehaviour
     private BoxCollider playFieldSurfaceCollider;
     private Transform boundaryRoot;
     private ArenaBallService ballService;
+    private ArenaHudView hudView;
     private Material cachedBotRedMaterial;
     private Material cachedBotBlueMaterial;
 
@@ -82,6 +86,7 @@ public class MiniGameManager : MonoBehaviour
 
         Instance = this;
         ballService = GetOrAddComponent<ArenaBallService>(gameObject);
+        EnsureHudView();
     }
 
     private void OnEnable()
@@ -102,6 +107,7 @@ public class MiniGameManager : MonoBehaviour
     private void Update()
     {
         HandleDebugShortcuts();
+        RefreshHud();
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -539,33 +545,46 @@ public class MiniGameManager : MonoBehaviour
         victim.Respawn();
     }
 
-    private void OnGUI()
+    private void EnsureHudView()
     {
-        GUIStyle style = new GUIStyle(GUI.skin.box)
+        if (hudView != null)
         {
-            fontSize = 18,
-            alignment = TextAnchor.MiddleCenter
-        };
-
-        string ballStatus = "Ball: in play";
-        if (PlayerCombatant != null && PlayerCombatant.HasBall)
-        {
-            ballStatus = "Ball: player";
-        }
-        else if (BotCombatant != null && BotCombatant.HasBall)
-        {
-            ballStatus = "Ball: AI";
-        }
-        else if (CurrentLooseBallTransform != null)
-        {
-            ballStatus = "Ball: floor";
+            return;
         }
 
-        GUI.Box(new Rect(20f, 20f, 1100f, 64f), $"F throw   RMB defend   Ctrl roll   Space double jump   F2 enemy toggle   F3 recover ball   {ballStatus}", style);
-        DrawHealthBar(new Rect(20f, 94f, 320f, 28f), "Player", PlayerCombatant, new Color(0.25f, 0.9f, 1f));
-        DrawHealthBar(new Rect(Screen.width - 340f, 94f, 320f, 28f), "AI", BotCombatant, new Color(1f, 0.4f, 0.2f));
+        GameObject prefab = Resources.Load<GameObject>(ArenaHudPrefabPath);
+        if (prefab == null)
+        {
+            Debug.LogError($"MiniGameManager could not load HUD prefab at Resources/{ArenaHudPrefabPath}.", this);
+            return;
+        }
 
-        DrawCrosshair();
+        GameObject hudObject = Instantiate(prefab);
+        hudObject.name = prefab.name;
+        DontDestroyOnLoad(hudObject);
+        hudView = hudObject.GetComponent<ArenaHudView>();
+        if (hudView == null)
+        {
+            Debug.LogError("Arena HUD prefab is missing ArenaHudView.", hudObject);
+            return;
+        }
+
+        hudView.Configure(playerHudColor, botHudColor, crosshairColor);
+    }
+
+    private void RefreshHud()
+    {
+        if (hudView == null)
+        {
+            EnsureHudView();
+        }
+
+        if (hudView == null)
+        {
+            return;
+        }
+
+        hudView.Refresh(PlayerCombatant, BotCombatant, CurrentLooseBallTransform);
     }
 
     private void HandleDebugShortcuts()
@@ -643,27 +662,6 @@ public class MiniGameManager : MonoBehaviour
         }
 
         PlayerCombatant.GiveBall();
-    }
-
-    private void DrawCrosshair()
-    {
-        Color previousColor = GUI.color;
-        GUI.color = crosshairColor;
-
-        float centerX = Screen.width * 0.5f;
-        float centerY = Screen.height * 0.5f;
-        float gap = 7f;
-        float armLength = 12f;
-        float thickness = 2.5f;
-        float dotSize = 4f;
-
-        GUI.DrawTexture(new Rect(centerX - thickness * 0.5f, centerY - gap - armLength, thickness, armLength), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(centerX - thickness * 0.5f, centerY + gap, thickness, armLength), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(centerX - gap - armLength, centerY - thickness * 0.5f, armLength, thickness), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(centerX + gap, centerY - thickness * 0.5f, armLength, thickness), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(centerX - dotSize * 0.5f, centerY - dotSize * 0.5f, dotSize, dotSize), Texture2D.whiteTexture);
-
-        GUI.color = previousColor;
     }
 
     private static T GetOrAddComponent<T>(GameObject target) where T : Component
@@ -815,33 +813,6 @@ public class MiniGameManager : MonoBehaviour
     private static ArenaThrowClipPlayer GetOrAddThrowClipPlayer(GameObject target)
     {
         return GetOrAddComponent<ArenaThrowClipPlayer>(target);
-    }
-
-    private void DrawHealthBar(Rect rect, string label, ArenaCombatant combatant, Color fillColor)
-    {
-        GUI.Box(rect, string.Empty);
-        if (combatant == null)
-        {
-            return;
-        }
-
-        float padding = 3f;
-        Rect fillRect = new Rect(
-            rect.x + padding,
-            rect.y + padding,
-            (rect.width - padding * 2f) * combatant.HealthNormalized,
-            rect.height - padding * 2f);
-
-        Color previousColor = GUI.color;
-        GUI.color = fillColor;
-        GUI.DrawTexture(fillRect, Texture2D.whiteTexture);
-        GUI.color = Color.white;
-        GUI.Label(rect, $"{label} HP {Mathf.CeilToInt(combatant.CurrentHealth)}/{Mathf.CeilToInt(combatant.MaxHealth)}", new GUIStyle(GUI.skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter,
-            fontStyle = FontStyle.Bold
-        });
-        GUI.color = previousColor;
     }
 
     private static GameObject GetActorRoot(GameObject instanceRoot)

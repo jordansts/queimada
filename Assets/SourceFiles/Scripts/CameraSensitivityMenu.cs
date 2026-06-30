@@ -10,6 +10,7 @@ using UnityEngine.SceneManagement;
 
 public class CameraSensitivityMenu : MonoBehaviour
 {
+    private const string MenuPrefabPath = "UI/CameraSensitivityMenuCanvas";
     private const string SensitivityPrefKey = "CameraLookSensitivity";
     private const string InvertYPrefKey = "CameraInvertY";
     private const float MinSensitivity = 0.5f;
@@ -18,6 +19,7 @@ public class CameraSensitivityMenu : MonoBehaviour
     private ThirdPersonController _controller;
     private StarterAssetsInputs _inputs;
     private GameObject _menuRoot;
+    private CameraSensitivityMenuView _menuView;
     private Slider _slider;
     private Text _valueLabel;
     private Toggle _invertYToggle;
@@ -41,8 +43,7 @@ public class CameraSensitivityMenu : MonoBehaviour
 
     private void Awake()
     {
-        BuildMenu();
-        _menuRoot.SetActive(false);
+        BuildMenuFromPrefab();
     }
 
     private void OnEnable()
@@ -155,91 +156,43 @@ public class CameraSensitivityMenu : MonoBehaviour
         Time.timeScale = 1f;
     }
 
-    private void BuildMenu()
+    private void BuildMenuFromPrefab()
     {
         EnsureEventSystem();
-        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        GameObject prefab = Resources.Load<GameObject>(MenuPrefabPath);
+        if (prefab == null)
+        {
+            Debug.LogError($"CameraSensitivityMenu could not load menu prefab at Resources/{MenuPrefabPath}.", this);
+            return;
+        }
 
-        _menuRoot = new GameObject("CameraSensitivityCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        _menuRoot = Instantiate(prefab);
+        _menuRoot.name = prefab.name;
         DontDestroyOnLoad(_menuRoot);
+        _menuView = _menuRoot.GetComponent<CameraSensitivityMenuView>();
+        if (_menuView == null)
+        {
+            Debug.LogError("CameraSensitivityMenu prefab is missing CameraSensitivityMenuView.", _menuRoot);
+            return;
+        }
 
-        Canvas canvas = _menuRoot.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 1000;
+        _slider = _menuView.SensitivitySlider;
+        _valueLabel = _menuView.ValueLabel;
+        _invertYToggle = _menuView.InvertYToggle;
 
-        CanvasScaler scaler = _menuRoot.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        if (_slider != null)
+        {
+            _slider.minValue = MinSensitivity;
+            _slider.maxValue = MaxSensitivity;
+            _slider.onValueChanged.AddListener(OnSliderChanged);
+        }
 
-        GameObject panel = new GameObject("Panel", typeof(Image));
-        panel.transform.SetParent(_menuRoot.transform, false);
-        RectTransform panelRect = panel.GetComponent<RectTransform>();
-        panelRect.anchorMin = panelRect.anchorMax = panelRect.pivot = new Vector2(0.5f, 0.5f);
-        panelRect.sizeDelta = new Vector2(420f, 220f);
-        panel.GetComponent<Image>().color = new Color(0.08f, 0.1f, 0.14f, 0.94f);
+        if (_invertYToggle != null)
+        {
+            _invertYToggle.onValueChanged.AddListener(OnInvertYChanged);
+        }
 
-        CreateLabel(panel.transform, font, "Sensibilidade da Camera", new Vector2(0f, 72f), 28);
-        _valueLabel = CreateLabel(panel.transform, font, string.Empty, new Vector2(0f, 18f), 18);
-        CreateLabel(panel.transform, font, "ESC para fechar", new Vector2(0f, -92f), 18);
-
-        GameObject sliderObject = new GameObject("Slider", typeof(RectTransform), typeof(Slider));
-        sliderObject.transform.SetParent(panel.transform, false);
-        RectTransform sliderRect = sliderObject.GetComponent<RectTransform>();
-        sliderRect.anchorMin = sliderRect.anchorMax = sliderRect.pivot = new Vector2(0.5f, 0.5f);
-        sliderRect.sizeDelta = new Vector2(280f, 20f);
-        sliderRect.anchoredPosition = new Vector2(0f, -22f);
-
-        GameObject background = new GameObject("Background", typeof(Image));
-        background.transform.SetParent(sliderObject.transform, false);
-        RectTransform bgRect = background.GetComponent<RectTransform>();
-        bgRect.anchorMin = Vector2.zero;
-        bgRect.anchorMax = Vector2.one;
-        bgRect.offsetMin = Vector2.zero;
-        bgRect.offsetMax = Vector2.zero;
-        background.GetComponent<Image>().color = new Color(0.2f, 0.24f, 0.3f, 1f);
-
-        GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
-        fillArea.transform.SetParent(sliderObject.transform, false);
-        RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
-        fillAreaRect.anchorMin = Vector2.zero;
-        fillAreaRect.anchorMax = Vector2.one;
-        fillAreaRect.offsetMin = new Vector2(10f, 5f);
-        fillAreaRect.offsetMax = new Vector2(-10f, -5f);
-
-        GameObject fill = new GameObject("Fill", typeof(Image));
-        fill.transform.SetParent(fillArea.transform, false);
-        RectTransform fillRect = fill.GetComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = Vector2.one;
-        fillRect.offsetMin = Vector2.zero;
-        fillRect.offsetMax = Vector2.zero;
-        fill.GetComponent<Image>().color = new Color(0.29f, 0.66f, 0.95f, 1f);
-
-        GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
-        handleArea.transform.SetParent(sliderObject.transform, false);
-        RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
-        handleAreaRect.anchorMin = Vector2.zero;
-        handleAreaRect.anchorMax = Vector2.one;
-        handleAreaRect.offsetMin = new Vector2(10f, 0f);
-        handleAreaRect.offsetMax = new Vector2(-10f, 0f);
-
-        GameObject handle = new GameObject("Handle", typeof(Image));
-        handle.transform.SetParent(handleArea.transform, false);
-        RectTransform handleRect = handle.GetComponent<RectTransform>();
-        handleRect.sizeDelta = new Vector2(18f, 28f);
-        Image handleImage = handle.GetComponent<Image>();
-        handleImage.color = new Color(0.95f, 0.97f, 1f, 1f);
-
-        _slider = sliderObject.GetComponent<Slider>();
-        _slider.fillRect = fillRect;
-        _slider.handleRect = handleRect;
-        _slider.targetGraphic = handleImage;
-        _slider.direction = Slider.Direction.LeftToRight;
-        _slider.minValue = MinSensitivity;
-        _slider.maxValue = MaxSensitivity;
-        _slider.onValueChanged.AddListener(OnSliderChanged);
-
-        _invertYToggle = CreateToggle(panel.transform, font, "Inverter eixo Y", new Vector2(0f, -56f));
+        _menuRoot.SetActive(false);
     }
 
     private void EnsureEventSystem()
@@ -256,24 +209,6 @@ public class CameraSensitivityMenu : MonoBehaviour
         eventSystemObject.AddComponent<StandaloneInputModule>();
 #endif
         DontDestroyOnLoad(eventSystemObject);
-    }
-
-    private Text CreateLabel(Transform parent, Font font, string text, Vector2 position, int fontSize)
-    {
-        GameObject obj = new GameObject("Label", typeof(Text));
-        obj.transform.SetParent(parent, false);
-        Text label = obj.GetComponent<Text>();
-        label.font = font;
-        label.fontSize = fontSize;
-        label.alignment = TextAnchor.MiddleCenter;
-        label.color = Color.white;
-        label.text = text;
-
-        RectTransform rect = label.GetComponent<RectTransform>();
-        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(360f, 36f);
-        rect.anchoredPosition = position;
-        return label;
     }
 
     private void OnSliderChanged(float value)
@@ -326,52 +261,6 @@ public class CameraSensitivityMenu : MonoBehaviour
         {
             _valueLabel.text = $"Sensibilidade: {value:0.0}";
         }
-    }
-
-    private Toggle CreateToggle(Transform parent, Font font, string labelText, Vector2 position)
-    {
-        GameObject toggleObject = new GameObject("InvertYToggle", typeof(RectTransform), typeof(Toggle));
-        toggleObject.transform.SetParent(parent, false);
-        RectTransform toggleRect = toggleObject.GetComponent<RectTransform>();
-        toggleRect.anchorMin = toggleRect.anchorMax = toggleRect.pivot = new Vector2(0.5f, 0.5f);
-        toggleRect.sizeDelta = new Vector2(280f, 28f);
-        toggleRect.anchoredPosition = position;
-
-        GameObject background = new GameObject("Background", typeof(Image));
-        background.transform.SetParent(toggleObject.transform, false);
-        RectTransform backgroundRect = background.GetComponent<RectTransform>();
-        backgroundRect.anchorMin = new Vector2(0f, 0.5f);
-        backgroundRect.anchorMax = new Vector2(0f, 0.5f);
-        backgroundRect.pivot = new Vector2(0f, 0.5f);
-        backgroundRect.sizeDelta = new Vector2(20f, 20f);
-        backgroundRect.anchoredPosition = new Vector2(8f, 0f);
-        Image backgroundImage = background.GetComponent<Image>();
-        backgroundImage.color = new Color(0.2f, 0.24f, 0.3f, 1f);
-
-        GameObject checkmark = new GameObject("Checkmark", typeof(Image));
-        checkmark.transform.SetParent(background.transform, false);
-        RectTransform checkmarkRect = checkmark.GetComponent<RectTransform>();
-        checkmarkRect.anchorMin = new Vector2(0.5f, 0.5f);
-        checkmarkRect.anchorMax = new Vector2(0.5f, 0.5f);
-        checkmarkRect.pivot = new Vector2(0.5f, 0.5f);
-        checkmarkRect.sizeDelta = new Vector2(12f, 12f);
-        Image checkmarkImage = checkmark.GetComponent<Image>();
-        checkmarkImage.color = new Color(0.29f, 0.66f, 0.95f, 1f);
-
-        Text label = CreateLabel(toggleObject.transform, font, labelText, new Vector2(38f, 0f), 18);
-        label.alignment = TextAnchor.MiddleLeft;
-        RectTransform labelRect = label.GetComponent<RectTransform>();
-        labelRect.anchorMin = new Vector2(0f, 0.5f);
-        labelRect.anchorMax = new Vector2(1f, 0.5f);
-        labelRect.pivot = new Vector2(0f, 0.5f);
-        labelRect.offsetMin = new Vector2(36f, -18f);
-        labelRect.offsetMax = new Vector2(0f, 18f);
-
-        Toggle toggle = toggleObject.GetComponent<Toggle>();
-        toggle.targetGraphic = backgroundImage;
-        toggle.graphic = checkmarkImage;
-        toggle.onValueChanged.AddListener(OnInvertYChanged);
-        return toggle;
     }
 
     private void OnDestroy()
