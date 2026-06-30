@@ -136,13 +136,13 @@ public static class PlayerDirectionalControllerInstaller
 
         AnimatorStateTransition anyToRollTransition = stateMachine.AddAnyStateTransition(rollState);
         anyToRollTransition.hasExitTime = false;
-        anyToRollTransition.duration = 0.03f;
+        anyToRollTransition.duration = 0.02f;
         anyToRollTransition.AddCondition(AnimatorConditionMode.If, 0f, "Roll");
 
         AnimatorStateTransition rollToLocomotionTransition = rollState.AddTransition(locomotionState);
         rollToLocomotionTransition.hasExitTime = true;
-        rollToLocomotionTransition.exitTime = 0.95f;
-        rollToLocomotionTransition.duration = 0.05f;
+        rollToLocomotionTransition.exitTime = 1f;
+        rollToLocomotionTransition.duration = 0.02f;
 
         AssignControllerToPlayerPrefabs(controller);
 

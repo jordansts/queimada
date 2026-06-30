@@ -267,7 +267,8 @@ namespace StarterAssets
         {
             if (IsRolling)
             {
-                ApplyMovement(_rollDirection, RollSpeed, 1f, false);
+                FacePlanarDirection(_rollDirection);
+                ApplyMovement(_rollDirection, RollSpeed, 1f, false, Vector2.up, 2f);
                 return;
             }
 
@@ -433,6 +434,7 @@ namespace StarterAssets
             desiredDirection = Vector3.ProjectOnPlane(desiredDirection, Vector3.up).normalized;
             _rollDirection = desiredDirection.sqrMagnitude > 0.0001f ? desiredDirection : transform.forward;
             _rollDirection = Vector3.ProjectOnPlane(_rollDirection, Vector3.up).normalized;
+            FacePlanarDirection(_rollDirection);
 
             if (_hasAnimator)
             {
@@ -440,7 +442,13 @@ namespace StarterAssets
             }
         }
 
-        private void ApplyMovement(Vector3 direction, float horizontalSpeed, float inputMagnitude, bool useAnimationBlend)
+        private void ApplyMovement(
+            Vector3 direction,
+            float horizontalSpeed,
+            float inputMagnitude,
+            bool useAnimationBlend,
+            Vector2? animationInputOverride = null,
+            float? locomotionTierOverride = null)
         {
             _controller.Move(direction * (horizontalSpeed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 
@@ -448,13 +456,24 @@ namespace StarterAssets
             {
                 _animator.SetFloat(_animIDSpeed, useAnimationBlend ? _animationBlend : horizontalSpeed);
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
-                Vector2 moveInput = Vector2.ClampMagnitude(_input.move, 1f);
-                float locomotionTier = IsBlocking ? 0.5f : (_input.sprint ? 2f : 1f);
+                Vector2 moveInput = animationInputOverride ?? Vector2.ClampMagnitude(_input.move, 1f);
+                float locomotionTier = locomotionTierOverride ?? (IsBlocking ? 0.5f : (_input.sprint ? 2f : 1f));
                 _moveXBlend = Mathf.Lerp(_moveXBlend, moveInput.x * locomotionTier, Time.deltaTime * SpeedChangeRate);
                 _moveYBlend = Mathf.Lerp(_moveYBlend, moveInput.y * locomotionTier, Time.deltaTime * SpeedChangeRate);
                 _animator.SetFloat(_animIDMoveX, _moveXBlend);
                 _animator.SetFloat(_animIDMoveY, _moveYBlend);
             }
+        }
+
+        private void FacePlanarDirection(Vector3 direction)
+        {
+            Vector3 planarDirection = Vector3.ProjectOnPlane(direction, Vector3.up);
+            if (planarDirection.sqrMagnitude < 0.0001f)
+            {
+                return;
+            }
+
+            transform.rotation = Quaternion.LookRotation(planarDirection.normalized, Vector3.up);
         }
 
         private static float ClampAngle(float angle, float min, float max)

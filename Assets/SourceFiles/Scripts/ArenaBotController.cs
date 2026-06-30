@@ -553,10 +553,22 @@ public class ArenaBotController : MonoBehaviour
         rollDirection = planarDirection.normalized;
         rollRemaining = rollDuration;
         rollCooldownRemaining = rollCooldown;
+        FacePlanarDirection(rollDirection);
 
         if (animator != null)
         {
             animator.SetTrigger(rollHash);
         }
+    }
+
+    private void FacePlanarDirection(Vector3 direction)
+    {
+        Vector3 planarDirection = Vector3.ProjectOnPlane(direction, Vector3.up);
+        if (planarDirection.sqrMagnitude < 0.0001f)
+        {
+            return;
+        }
+
+        transform.rotation = Quaternion.LookRotation(planarDirection.normalized, Vector3.up);
     }
 }
