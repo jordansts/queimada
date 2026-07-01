@@ -9,7 +9,7 @@ public class ArenaPlayerShooter : MonoBehaviour
     [SerializeField] private float maxThrowDistance = 22f;
     [SerializeField] private float baseArcHeight = 0.08f;
     [SerializeField] private float arcHeightDistanceFactor = 0.005f;
-    [SerializeField] private float throwSpeedMultiplier = 1.40625f;
+    [SerializeField] private float throwSpeedMultiplier = 1.265625f;
     [SerializeField] private float damage = 28f;
     [SerializeField] private float knockbackForce = 140f;
     [SerializeField] private float aimRange = 120f;

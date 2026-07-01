@@ -21,7 +21,7 @@ public class ArenaBotController : MonoBehaviour
     [SerializeField] private float fireCooldown = 0.75f;
     [SerializeField] private float baseArcHeight = 0.07f;
     [SerializeField] private float arcHeightDistanceFactor = 0.0045f;
-    [SerializeField] private float throwSpeedMultiplier = 1.40625f;
+    [SerializeField] private float throwSpeedMultiplier = 1.265625f;
     [SerializeField] private float damage = 22f;
     [SerializeField] private float knockbackForce = 120f;
     [SerializeField] private float orbitWeight = 1.15f;
