@@ -4,11 +4,12 @@ using UnityEngine.InputSystem;
 
 public class ArenaPlayerShooter : MonoBehaviour
 {
-    private const float MinForwardAimDistance = 8f;
-
     [SerializeField] private float fireCooldown = 0.4f;
-    [SerializeField] private float projectileSpeed = 15.5f;
-    [SerializeField] private float throwLift = 4.2f;
+    [SerializeField] private float minThrowDistance = 5f;
+    [SerializeField] private float maxThrowDistance = 22f;
+    [SerializeField] private float baseArcHeight = 2.4f;
+    [SerializeField] private float arcHeightDistanceFactor = 0.08f;
+    [SerializeField] private float throwSpinSpeed = 18f;
     [SerializeField] private float damage = 28f;
     [SerializeField] private float knockbackForce = 140f;
     [SerializeField] private float aimRange = 120f;
@@ -104,14 +105,14 @@ public class ArenaPlayerShooter : MonoBehaviour
 
         Vector3 toAimPoint = aimPoint - fallbackOrigin;
         float forwardDistance = Vector3.Dot(cameraForward, toAimPoint);
-        if (forwardDistance < MinForwardAimDistance)
+        if (forwardDistance < minThrowDistance)
         {
-            aimPoint = fallbackOrigin + cameraForward * MinForwardAimDistance;
+            aimPoint = fallbackOrigin + cameraForward * minThrowDistance;
         }
 
         if (Vector3.Distance(fallbackOrigin, aimPoint) < 0.5f)
         {
-            aimPoint = fallbackOrigin + cameraForward * MinForwardAimDistance;
+            aimPoint = fallbackOrigin + cameraForward * minThrowDistance;
         }
 
         return aimPoint;
@@ -143,22 +144,31 @@ public class ArenaPlayerShooter : MonoBehaviour
         }
 
         Vector3 spawnPosition = GetThrowOriginPosition();
-        Vector3 aimPoint = queuedAimPoint;
+        Vector3 rawAimPoint = queuedAimPoint;
         Vector3 cameraForward = ResolveAimForward();
-        Vector3 direction = (aimPoint - spawnPosition).normalized;
+        Vector3 direction = (rawAimPoint - spawnPosition).normalized;
         if (direction.sqrMagnitude < 0.0001f || Vector3.Dot(direction, cameraForward) <= 0.15f)
         {
             direction = cameraForward;
         }
 
         spawnPosition += direction * 0.4f;
-        Vector3 launchVelocity = ResolveLaunchVelocity(spawnPosition, aimPoint, direction);
+        Vector3 targetPoint = ArenaThrowPhysics.ClampTargetToThrowRange(
+            spawnPosition,
+            rawAimPoint,
+            direction,
+            minThrowDistance,
+            maxThrowDistance);
+
+        Vector3 launchVelocity = ResolveLaunchVelocity(spawnPosition, targetPoint, direction);
+        Vector3 angularVelocity = ArenaThrowPhysics.ComputeBackspinAngularVelocity(launchVelocity, throwSpinSpeed);
         owner.RemoveBall();
         ArenaProjectileFactory.CreateProjectile(
             "PlayerProjectile",
             owner,
             spawnPosition,
             launchVelocity,
+            angularVelocity,
             damage,
             knockbackForce);
     }
@@ -166,6 +176,18 @@ public class ArenaPlayerShooter : MonoBehaviour
     private Vector3 ResolveLaunchVelocity(Vector3 origin, Vector3 aimPoint, Vector3 fallbackDirection)
     {
         Vector3 planarOffset = Vector3.ProjectOnPlane(aimPoint - origin, Vector3.up);
+        float arcHeight = baseArcHeight + planarOffset.magnitude * arcHeightDistanceFactor;
+        if (ArenaThrowPhysics.TrySolveArcVelocity(
+            origin,
+            aimPoint,
+            Mathf.Abs(Physics.gravity.y),
+            arcHeight,
+            out Vector3 launchVelocity,
+            out _))
+        {
+            return launchVelocity;
+        }
+
         Vector3 planarDirection = planarOffset.sqrMagnitude > 0.0001f
             ? planarOffset.normalized
             : Vector3.ProjectOnPlane(fallbackDirection, Vector3.up).normalized;
@@ -174,10 +196,7 @@ public class ArenaPlayerShooter : MonoBehaviour
             planarDirection = transform.forward;
         }
 
-        float planarDistance = planarOffset.magnitude;
-        float distanceFactor = Mathf.InverseLerp(MinForwardAimDistance, 22f, planarDistance);
-        float horizontalSpeed = Mathf.Lerp(projectileSpeed * 0.92f, projectileSpeed, distanceFactor);
-        return planarDirection * horizontalSpeed + Vector3.up * throwLift;
+        return planarDirection * 12f + Vector3.up * 5f;
     }
 
     private Vector3 GetThrowOriginPosition()

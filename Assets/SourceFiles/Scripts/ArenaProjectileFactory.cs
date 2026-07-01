@@ -7,6 +7,7 @@ public static class ArenaProjectileFactory
         ArenaCombatant owner,
         Vector3 position,
         Vector3 initialVelocity,
+        Vector3 initialAngularVelocity,
         float damage,
         float knockbackForce)
     {
@@ -35,7 +36,7 @@ public static class ArenaProjectileFactory
         rigidbody.isKinematic = false;
         rigidbody.detectCollisions = true;
 
-        projectile.Initialize(owner, initialVelocity, damage, knockbackForce);
+        projectile.Initialize(owner, initialVelocity, initialAngularVelocity, damage, knockbackForce);
         return projectile;
     }
 }

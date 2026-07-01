@@ -19,8 +19,12 @@ public class ArenaBotController : MonoBehaviour
     [SerializeField] private float engageRange = 11f;
     [SerializeField] private float personalSpaceRange = 1.75f;
     [SerializeField] private float fireCooldown = 0.75f;
-    [SerializeField] private float projectileSpeed = 15f;
-    [SerializeField] private float throwLift = 4f;
+    [SerializeField] private float minThrowDistance = 5f;
+    [SerializeField] private float maxThrowDistance = 21f;
+    [SerializeField] private float baseArcHeight = 2.2f;
+    [SerializeField] private float arcHeightDistanceFactor = 0.08f;
+    [SerializeField] private float aimPredictionSpeed = 12f;
+    [SerializeField] private float throwSpinSpeed = 16f;
     [SerializeField] private float damage = 22f;
     [SerializeField] private float knockbackForce = 120f;
     [SerializeField] private float orbitWeight = 1.15f;
@@ -150,8 +154,20 @@ public class ArenaBotController : MonoBehaviour
         throwClipPlayer?.PlayThrow();
 
         Transform muzzle = owner.ThrowOrigin != null ? owner.ThrowOrigin : transform;
-        Vector3 aimPoint = ResolveAimPoint(target);
-        Vector3 direction = (aimPoint - muzzle.position).normalized;
+        Vector3 rawAimPoint = ResolveAimPoint(target);
+        Vector3 direction = (rawAimPoint - muzzle.position).normalized;
+        if (direction.sqrMagnitude < 0.0001f)
+        {
+            direction = transform.forward;
+        }
+
+        Vector3 aimPoint = ArenaThrowPhysics.ClampTargetToThrowRange(
+            muzzle.position,
+            rawAimPoint,
+            direction,
+            minThrowDistance,
+            maxThrowDistance);
+
         queuedSpawnPosition = muzzle.position + direction * 0.4f;
         queuedDirection = direction;
         queuedAimPoint = aimPoint;
@@ -300,7 +316,7 @@ public class ArenaBotController : MonoBehaviour
         Transform muzzle = owner.ThrowOrigin != null ? owner.ThrowOrigin : transform;
         Vector3 targetCenter = target.transform.position + Vector3.up * aimTargetHeight;
         float distance = Vector3.Distance(muzzle.position, targetCenter);
-        float travelTime = distance / Mathf.Max(projectileSpeed, 0.1f);
+        float travelTime = distance / Mathf.Max(aimPredictionSpeed, 0.1f);
         float predictionTime = Mathf.Min(aimPredictionTime + travelTime * 0.35f, 0.9f);
         Vector3 predictedPoint = targetCenter + targetVelocity * predictionTime;
 
@@ -379,11 +395,13 @@ public class ArenaBotController : MonoBehaviour
 
         owner.RemoveBall();
         Vector3 launchVelocity = ResolveLaunchVelocity(queuedSpawnPosition, queuedAimPoint, queuedDirection);
+        Vector3 angularVelocity = ArenaThrowPhysics.ComputeBackspinAngularVelocity(launchVelocity, throwSpinSpeed);
         ArenaProjectileFactory.CreateProjectile(
             "BotProjectile",
             owner,
             queuedSpawnPosition,
             launchVelocity,
+            angularVelocity,
             damage,
             knockbackForce);
     }
@@ -391,6 +409,18 @@ public class ArenaBotController : MonoBehaviour
     private Vector3 ResolveLaunchVelocity(Vector3 origin, Vector3 aimPoint, Vector3 fallbackDirection)
     {
         Vector3 planarOffset = Vector3.ProjectOnPlane(aimPoint - origin, Vector3.up);
+        float arcHeight = baseArcHeight + planarOffset.magnitude * arcHeightDistanceFactor;
+        if (ArenaThrowPhysics.TrySolveArcVelocity(
+            origin,
+            aimPoint,
+            Mathf.Abs(Physics.gravity.y),
+            arcHeight,
+            out Vector3 launchVelocity,
+            out _))
+        {
+            return launchVelocity;
+        }
+
         Vector3 planarDirection = planarOffset.sqrMagnitude > 0.0001f
             ? planarOffset.normalized
             : Vector3.ProjectOnPlane(fallbackDirection, Vector3.up).normalized;
@@ -399,10 +429,7 @@ public class ArenaBotController : MonoBehaviour
             planarDirection = transform.forward;
         }
 
-        float planarDistance = planarOffset.magnitude;
-        float distanceFactor = Mathf.InverseLerp(6f, 20f, planarDistance);
-        float horizontalSpeed = Mathf.Lerp(projectileSpeed * 0.92f, projectileSpeed, distanceFactor);
-        return planarDirection * horizontalSpeed + Vector3.up * throwLift;
+        return planarDirection * 11f + Vector3.up * 5f;
     }
 
     private void UpdateBallChase(ArenaCombatant target, Transform looseBall)

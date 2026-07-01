@@ -4,12 +4,18 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class ArenaProjectile : MonoBehaviour
 {
+    private const float BasketballMass = 0.62f;
+    private const float BasketballLinearDamping = 0.015f;
+    private const float BasketballAngularDamping = 0.08f;
+    private const float BasketballTargetBounceFactor = 0.62f;
+    private const float BasketballTargetMinBounceUpwardSpeed = 1.6f;
+
     [SerializeField] private float lifetimeSeconds = 8f;
     [SerializeField] private float ownerCollisionIgnoreSeconds = 0.3f;
     [SerializeField] private float pickupDelaySeconds = 0.35f;
-    [SerializeField] private float settleLinearSpeedThreshold = 1.15f;
-    [SerializeField] private float settleAngularSpeedThreshold = 5f;
-    [SerializeField] private float settleDelaySeconds = 0.18f;
+    [SerializeField] private float settleLinearSpeedThreshold = 0.45f;
+    [SerializeField] private float settleAngularSpeedThreshold = 2.2f;
+    [SerializeField] private float settleDelaySeconds = 0.55f;
 
     private ArenaCombatant owner;
     private float damage;
@@ -29,7 +35,12 @@ public class ArenaProjectile : MonoBehaviour
         sphereCollider = GetComponent<SphereCollider>();
     }
 
-    public void Initialize(ArenaCombatant owner, Vector3 initialVelocity, float damage, float knockbackForce)
+    public void Initialize(
+        ArenaCombatant owner,
+        Vector3 initialVelocity,
+        Vector3 initialAngularVelocity,
+        float damage,
+        float knockbackForce)
     {
         enabled = true;
         resolved = false;
@@ -64,13 +75,15 @@ public class ArenaProjectile : MonoBehaviour
         }
 
         sphereCollider.isTrigger = false;
+        projectileRigidbody.mass = BasketballMass;
         projectileRigidbody.useGravity = true;
         projectileRigidbody.isKinematic = false;
         projectileRigidbody.detectCollisions = true;
-        projectileRigidbody.linearDamping = 0.08f;
-        projectileRigidbody.angularDamping = 0.35f;
+        projectileRigidbody.linearDamping = BasketballLinearDamping;
+        projectileRigidbody.angularDamping = BasketballAngularDamping;
+        projectileRigidbody.maxAngularVelocity = 40f;
         projectileRigidbody.linearVelocity = initialVelocity;
-        projectileRigidbody.angularVelocity = Vector3.zero;
+        projectileRigidbody.angularVelocity = initialAngularVelocity;
     }
 
     private void FixedUpdate()
@@ -138,12 +151,20 @@ public class ArenaProjectile : MonoBehaviour
             Vector3 impulse = (horizontalDirection * 1.15f + Vector3.up * 0.2f).normalized * knockbackForce;
             target.ApplyHit(damage, impulse);
 
-            ContactPoint contact = collision.contactCount > 0 ? collision.GetContact(0) : default;
-            Vector3 dropPosition = collision.contactCount > 0
-                ? contact.point + contact.normal * 0.18f
-                : transform.position;
+            if (projectileRigidbody != null && collision.contactCount > 0)
+            {
+                ContactPoint contact = collision.GetContact(0);
+                Vector3 bouncedVelocity = Vector3.Reflect(velocity, contact.normal) * BasketballTargetBounceFactor;
+                if (bouncedVelocity.y < BasketballTargetMinBounceUpwardSpeed)
+                {
+                    bouncedVelocity.y = BasketballTargetMinBounceUpwardSpeed;
+                }
 
-            ResolveIntoPickup(dropPosition);
+                projectileRigidbody.linearVelocity = bouncedVelocity;
+            }
+
+            hasTouchedWorld = true;
+            settleTimer = 0f;
             return;
         }
 

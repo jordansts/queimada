@@ -64,8 +64,8 @@ public static class ArenaBallAssetInstaller
 
         Rigidbody rigidbody = root.AddComponent<Rigidbody>();
         rigidbody.mass = 0.62f;
-        rigidbody.linearDamping = 0.08f;
-        rigidbody.angularDamping = 0.35f;
+        rigidbody.linearDamping = 0.015f;
+        rigidbody.angularDamping = 0.08f;
         rigidbody.useGravity = true;
         rigidbody.isKinematic = false;
         rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
@@ -103,22 +103,22 @@ public static class ArenaBallAssetInstaller
         PhysicsMaterial existingMaterial = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(ProjectileMaterialPath);
         if (existingMaterial != null)
         {
-            existingMaterial.bounciness = 0.04f;
-            existingMaterial.dynamicFriction = 0.45f;
-            existingMaterial.staticFriction = 0.42f;
+            existingMaterial.bounciness = 0.78f;
+            existingMaterial.dynamicFriction = 0.28f;
+            existingMaterial.staticFriction = 0.32f;
             existingMaterial.bounceCombine = PhysicsMaterialCombine.Maximum;
-            existingMaterial.frictionCombine = PhysicsMaterialCombine.Average;
+            existingMaterial.frictionCombine = PhysicsMaterialCombine.Minimum;
             EditorUtility.SetDirty(existingMaterial);
             return existingMaterial;
         }
 
         PhysicsMaterial projectileMaterial = new PhysicsMaterial("ArenaBallProjectile")
         {
-            bounciness = 0.04f,
-            dynamicFriction = 0.45f,
-            staticFriction = 0.42f,
+            bounciness = 0.78f,
+            dynamicFriction = 0.28f,
+            staticFriction = 0.32f,
             bounceCombine = PhysicsMaterialCombine.Maximum,
-            frictionCombine = PhysicsMaterialCombine.Average
+            frictionCombine = PhysicsMaterialCombine.Minimum
         };
 
         AssetDatabase.CreateAsset(projectileMaterial, ProjectileMaterialPath);
