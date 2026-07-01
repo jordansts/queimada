@@ -7,12 +7,14 @@ public class ArenaPlayerShooter : MonoBehaviour
     [SerializeField] private float fireCooldown = 0.4f;
     [SerializeField] private float minThrowDistance = 5f;
     [SerializeField] private float maxThrowDistance = 22f;
-    [SerializeField] private float baseArcHeight = 2.4f;
-    [SerializeField] private float arcHeightDistanceFactor = 0.08f;
-    [SerializeField] private float throwSpinSpeed = 18f;
+    [SerializeField] private float baseArcHeight = 0.08f;
+    [SerializeField] private float arcHeightDistanceFactor = 0.005f;
+    [SerializeField] private float throwSpeedMultiplier = 1.40625f;
     [SerializeField] private float damage = 28f;
     [SerializeField] private float knockbackForce = 140f;
     [SerializeField] private float aimRange = 120f;
+    [SerializeField] private Vector3 fallbackLaunchOffset = new Vector3(0f, 1.1f, 0.28f);
+    [SerializeField] private float releaseDetachClearance = 0.02f;
 
     private ArenaCombatant owner;
     private ArenaThrowClipPlayer throwClipPlayer;
@@ -22,7 +24,6 @@ public class ArenaPlayerShooter : MonoBehaviour
     private bool hasAimPoint;
     private bool throwQueued;
     private float throwReleaseTimer;
-    private Vector3 queuedAimPoint;
 
     public bool HasAimPoint => hasAimPoint;
     public Vector3 CurrentAimPoint => currentAimPoint;
@@ -58,70 +59,24 @@ public class ArenaPlayerShooter : MonoBehaviour
 
     private bool WasFirePressedThisFrame()
     {
-        return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+        bool mousePressed = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+        bool keyboardPressed = Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame;
+        return mousePressed || keyboardPressed;
     }
 
     private void Fire()
     {
         cooldownRemaining = fireCooldown;
         throwClipPlayer?.PlayThrow();
-        currentAimPoint = ResolveAimPoint(GetThrowOriginPosition());
-        queuedAimPoint = currentAimPoint;
         throwReleaseTimer = throwClipPlayer != null ? throwClipPlayer.ReleaseDelay : 0f;
         throwQueued = true;
     }
 
     private void UpdateAimPoint()
     {
-        Vector3 fallbackOrigin = GetThrowOriginPosition();
-        currentAimPoint = ResolveAimPoint(fallbackOrigin);
+        Vector3 origin = ResolveLaunchOriginPosition();
+        currentAimPoint = ResolveAimPoint(origin);
         hasAimPoint = true;
-    }
-
-    private Vector3 ResolveAimPoint(Vector3 fallbackOrigin)
-    {
-        Vector3 cameraForward = ResolveAimForward();
-        Vector3 cameraPosition = ResolveAimOrigin();
-
-        if (cameraForward.sqrMagnitude < 0.0001f)
-        {
-            return fallbackOrigin + transform.forward * aimRange;
-        }
-
-        Ray aimRay = new Ray(cameraPosition, cameraForward);
-        Vector3 aimPoint = aimRay.GetPoint(aimRange);
-
-        RaycastHit[] hits = Physics.RaycastAll(aimRay, aimRange, ~0, QueryTriggerInteraction.Ignore);
-        System.Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
-        for (int i = 0; i < hits.Length; i++)
-        {
-            ArenaCombatant selfHit = hits[i].collider.GetComponentInParent<ArenaCombatant>();
-            if (selfHit == null || selfHit != owner)
-            {
-                aimPoint = hits[i].point;
-                break;
-            }
-        }
-
-        Vector3 toAimPoint = aimPoint - fallbackOrigin;
-        float forwardDistance = Vector3.Dot(cameraForward, toAimPoint);
-        if (forwardDistance < minThrowDistance)
-        {
-            aimPoint = fallbackOrigin + cameraForward * minThrowDistance;
-        }
-
-        if (Vector3.Distance(fallbackOrigin, aimPoint) < 0.5f)
-        {
-            aimPoint = fallbackOrigin + cameraForward * minThrowDistance;
-        }
-
-        return aimPoint;
-    }
-
-    private Vector3 GetFlatForward()
-    {
-        Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
-        return flatForward.sqrMagnitude > 0.0001f ? flatForward : Vector3.forward;
     }
 
     private void UpdateQueuedThrow()
@@ -143,65 +98,81 @@ public class ArenaPlayerShooter : MonoBehaviour
             return;
         }
 
-        Vector3 spawnPosition = GetThrowOriginPosition();
-        Vector3 rawAimPoint = queuedAimPoint;
-        Vector3 cameraForward = ResolveAimForward();
-        Vector3 direction = (rawAimPoint - spawnPosition).normalized;
-        if (direction.sqrMagnitude < 0.0001f || Vector3.Dot(direction, cameraForward) <= 0.15f)
+        Vector3 releaseOriginPosition = ResolveReleaseOriginPosition();
+        Vector3 aimPoint = ResolveAimPoint(releaseOriginPosition);
+        currentAimPoint = aimPoint;
+        Vector3 aimForward = ResolveAimForward();
+        Vector3 direction = (aimPoint - releaseOriginPosition).normalized;
+        if (direction.sqrMagnitude < 0.0001f || Vector3.Dot(direction, aimForward) <= 0.15f)
         {
-            direction = cameraForward;
+            direction = aimForward;
         }
 
-        spawnPosition += direction * 0.4f;
+        Vector3 spawnPosition = ArenaThrowPhysics.ResolveReleasePosition(
+            releaseOriginPosition,
+            direction,
+            transform.forward,
+            ArenaThrowPhysics.ProjectileRadius,
+            releaseDetachClearance);
+
         Vector3 targetPoint = ArenaThrowPhysics.ClampTargetToThrowRange(
             spawnPosition,
-            rawAimPoint,
+            aimPoint,
             direction,
             minThrowDistance,
             maxThrowDistance);
+        Vector3 planarOffset = Vector3.ProjectOnPlane(targetPoint - spawnPosition, Vector3.up);
+        float apexHeight = Mathf.Max(
+            spawnPosition.y,
+            targetPoint.y) + baseArcHeight + planarOffset.magnitude * arcHeightDistanceFactor;
+        Vector3 launchVelocity = ArenaThrowPhysics.BuildBallisticVelocity(
+            spawnPosition,
+            targetPoint,
+            Mathf.Abs(Physics.gravity.y),
+            apexHeight) * throwSpeedMultiplier;
 
-        Vector3 launchVelocity = ResolveLaunchVelocity(spawnPosition, targetPoint, direction);
-        Vector3 angularVelocity = ArenaThrowPhysics.ComputeBackspinAngularVelocity(launchVelocity, throwSpinSpeed);
-        owner.RemoveBall();
-        ArenaProjectileFactory.CreateProjectile(
+        ArenaProjectile projectile = ArenaProjectileFactory.CreateProjectile(
             "PlayerProjectile",
             owner,
             spawnPosition,
             launchVelocity,
-            angularVelocity,
             damage,
             knockbackForce);
+
+        if (projectile != null)
+        {
+            owner.RemoveBall();
+        }
     }
 
-    private Vector3 ResolveLaunchVelocity(Vector3 origin, Vector3 aimPoint, Vector3 fallbackDirection)
+    private Vector3 ResolveLaunchOriginPosition()
     {
-        Vector3 planarOffset = Vector3.ProjectOnPlane(aimPoint - origin, Vector3.up);
-        float arcHeight = baseArcHeight + planarOffset.magnitude * arcHeightDistanceFactor;
-        if (ArenaThrowPhysics.TrySolveArcVelocity(
+        if (owner != null && owner.ThrowOrigin != null)
+        {
+            return owner.ThrowOrigin.position;
+        }
+
+        return transform.TransformPoint(fallbackLaunchOffset);
+    }
+
+    private Vector3 ResolveReleaseOriginPosition()
+    {
+        if (owner != null)
+        {
+            return owner.GetBallReleaseOrigin();
+        }
+
+        return ResolveLaunchOriginPosition();
+    }
+
+    private Vector3 ResolveAimPoint(Vector3 origin)
+    {
+        return ArenaThrowPhysics.ResolveAimPoint(
+            Camera.main,
+            owner,
+            aimRange,
             origin,
-            aimPoint,
-            Mathf.Abs(Physics.gravity.y),
-            arcHeight,
-            out Vector3 launchVelocity,
-            out _))
-        {
-            return launchVelocity;
-        }
-
-        Vector3 planarDirection = planarOffset.sqrMagnitude > 0.0001f
-            ? planarOffset.normalized
-            : Vector3.ProjectOnPlane(fallbackDirection, Vector3.up).normalized;
-        if (planarDirection.sqrMagnitude < 0.0001f)
-        {
-            planarDirection = transform.forward;
-        }
-
-        return planarDirection * 12f + Vector3.up * 5f;
-    }
-
-    private Vector3 GetThrowOriginPosition()
-    {
-        return owner != null && owner.ThrowOrigin != null ? owner.ThrowOrigin.position : transform.position;
+            transform.forward);
     }
 
     private Vector3 ResolveAimForward()
@@ -224,21 +195,6 @@ public class ArenaPlayerShooter : MonoBehaviour
             }
         }
 
-        return GetFlatForward();
-    }
-
-    private Vector3 ResolveAimOrigin()
-    {
-        if (thirdPersonController != null && thirdPersonController.CinemachineCameraTarget != null)
-        {
-            return thirdPersonController.CinemachineCameraTarget.transform.position;
-        }
-
-        if (Camera.main != null)
-        {
-            return Camera.main.transform.position;
-        }
-
-        return GetThrowOriginPosition();
+        return transform.forward;
     }
 }

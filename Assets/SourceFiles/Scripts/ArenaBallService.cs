@@ -137,6 +137,26 @@ public class ArenaBallService : MonoBehaviour
             return null;
         }
 
+        Rigidbody rigidbody = sceneProjectileBall.GetComponent<Rigidbody>();
+        SphereCollider sphereCollider = sceneProjectileBall.GetComponent<SphereCollider>();
+        if (rigidbody != null)
+        {
+            rigidbody.useGravity = false;
+            rigidbody.detectCollisions = false;
+            rigidbody.isKinematic = false;
+            rigidbody.linearVelocity = Vector3.zero;
+            rigidbody.angularVelocity = Vector3.zero;
+            rigidbody.position = position;
+            rigidbody.rotation = Quaternion.identity;
+            rigidbody.isKinematic = true;
+            rigidbody.Sleep();
+        }
+
+        if (sphereCollider != null)
+        {
+            sphereCollider.isTrigger = true;
+        }
+
         sceneProjectileBall.gameObject.name = objectName;
         sceneProjectileBall.transform.SetPositionAndRotation(position, Quaternion.identity);
         sceneProjectileBall.gameObject.SetActive(true);
@@ -221,12 +241,15 @@ public class ArenaBallService : MonoBehaviour
         SphereCollider sphereCollider = sceneProjectileBall.GetComponent<SphereCollider>();
         if (rigidbody != null)
         {
+            rigidbody.useGravity = false;
+            rigidbody.detectCollisions = false;
             rigidbody.isKinematic = false;
             rigidbody.linearVelocity = Vector3.zero;
             rigidbody.angularVelocity = Vector3.zero;
-            rigidbody.useGravity = false;
+            rigidbody.position = sceneProjectileBall.transform.position;
+            rigidbody.rotation = sceneProjectileBall.transform.rotation;
             rigidbody.isKinematic = true;
-            rigidbody.detectCollisions = false;
+            rigidbody.Sleep();
         }
 
         if (sphereCollider != null)

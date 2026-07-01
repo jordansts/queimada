@@ -30,6 +30,7 @@ public static class ArenaSceneRuntimeSetupInstaller
         changed |= EnsurePrefabInstance<ArenaBallPickup>(LooseBallPrefabPath, "ArenaBallPickup", deactivateAfterCreate: true);
         changed |= EnsurePrefabInstance<ArenaProjectile>(ProjectileBallPrefabPath, "ArenaBallProjectile", deactivateAfterCreate: true);
         changed |= EnsurePlayFieldColliderSetup();
+        changed |= NormalizeArenaBallVisuals();
         changed |= AssignSceneReferences();
 
         if (changed)
@@ -205,6 +206,25 @@ public static class ArenaSceneRuntimeSetupInstaller
         {
             changed |= SetObjectReference(ballService, "sceneLooseBall", looseBall);
             changed |= SetObjectReference(ballService, "sceneProjectileBall", projectileBall);
+        }
+
+        return changed;
+    }
+
+    private static bool NormalizeArenaBallVisuals()
+    {
+        bool changed = false;
+
+        ArenaBallPickup looseBall = Object.FindAnyObjectByType<ArenaBallPickup>(FindObjectsInactive.Include);
+        if (looseBall != null)
+        {
+            changed |= ArenaBallAssetInstaller.AlignVisualToRoot(looseBall.gameObject);
+        }
+
+        ArenaProjectile projectileBall = Object.FindAnyObjectByType<ArenaProjectile>(FindObjectsInactive.Include);
+        if (projectileBall != null)
+        {
+            changed |= ArenaBallAssetInstaller.AlignVisualToRoot(projectileBall.gameObject);
         }
 
         return changed;

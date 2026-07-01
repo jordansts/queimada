@@ -2162,7 +2162,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   throwClip: {fileID: 3094330708855449807, guid: 96be620c323bdc7489d28dd60c80e08b, type: 3}
-  releaseNormalizedTime: 0.78
+  releaseNormalizedTime: 0.48
 --- !u!1 &5744773588333972899
 GameObject:
   m_ObjectHideFlags: 0

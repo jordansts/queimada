@@ -12,6 +12,7 @@ public class ArenaCombatant : MonoBehaviour
     public string DisplayName { get; private set; }
     public bool IsPlayerControlled { get; private set; }
     public Transform HeldBallAnchor { get; private set; }
+    public Transform HeldBallVisualTransform => heldBallVisual != null ? heldBallVisual.transform : null;
     public Transform ThrowOrigin { get; private set; }
     public ArenaCombatant Opponent { get; private set; }
     public Collider[] Colliders { get; private set; }
@@ -118,6 +119,26 @@ public class ArenaCombatant : MonoBehaviour
     public void RestoreFullHealth()
     {
         CurrentHealth = maxHealth;
+    }
+
+    public Vector3 GetBallReleaseOrigin()
+    {
+        if (ThrowOrigin != null)
+        {
+            return ThrowOrigin.position;
+        }
+
+        if (heldBallVisual != null)
+        {
+            return heldBallVisual.transform.position;
+        }
+
+        if (HeldBallAnchor != null)
+        {
+            return HeldBallAnchor.position;
+        }
+
+        return transform.position;
     }
 
     private void EnsureHeldBallVisual()

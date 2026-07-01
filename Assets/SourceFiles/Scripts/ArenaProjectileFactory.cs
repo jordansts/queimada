@@ -7,7 +7,6 @@ public static class ArenaProjectileFactory
         ArenaCombatant owner,
         Vector3 position,
         Vector3 initialVelocity,
-        Vector3 initialAngularVelocity,
         float damage,
         float knockbackForce)
     {
@@ -31,12 +30,17 @@ public static class ArenaProjectileFactory
             return null;
         }
 
+        projectile.transform.SetPositionAndRotation(position, Quaternion.identity);
+        Physics.SyncTransforms();
+
         sphereCollider.isTrigger = false;
         rigidbody.useGravity = true;
         rigidbody.isKinematic = false;
         rigidbody.detectCollisions = true;
+        rigidbody.interpolation = RigidbodyInterpolation.None;
+        rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
-        projectile.Initialize(owner, initialVelocity, initialAngularVelocity, damage, knockbackForce);
+        projectile.Initialize(owner, initialVelocity, damage, knockbackForce);
         return projectile;
     }
 }

@@ -8,6 +8,7 @@ public static class ArenaBallAssetInstaller
     private const string PickupBallPrefabPath = "Assets/SourceFiles/Resources/Arena/ArenaBallRuntime.prefab";
     private const string ProjectileBallPrefabPath = "Assets/SourceFiles/Resources/Arena/ArenaBallProjectile.prefab";
     private const string ProjectileMaterialPath = "Assets/SourceFiles/Materials/ArenaBallProjectile.asset";
+    private const float BallColliderRadius = 0.34f;
 
     [MenuItem("Tools/Arena/Rebuild Arena Ball Prefabs")]
     public static void Rebuild()
@@ -34,7 +35,7 @@ public static class ArenaBallAssetInstaller
         GameObject root = new GameObject("ArenaBallRuntime");
 
         SphereCollider sphereCollider = root.AddComponent<SphereCollider>();
-        sphereCollider.radius = 0.5f;
+        sphereCollider.radius = BallColliderRadius;
         sphereCollider.isTrigger = true;
         sphereCollider.material = projectileMaterial;
 
@@ -58,18 +59,18 @@ public static class ArenaBallAssetInstaller
         GameObject root = new GameObject("ArenaBallProjectile");
 
         SphereCollider sphereCollider = root.AddComponent<SphereCollider>();
-        sphereCollider.radius = 0.5f;
+        sphereCollider.radius = BallColliderRadius;
         sphereCollider.isTrigger = false;
         sphereCollider.material = projectileMaterial;
 
         Rigidbody rigidbody = root.AddComponent<Rigidbody>();
         rigidbody.mass = 0.62f;
-        rigidbody.linearDamping = 0.015f;
-        rigidbody.angularDamping = 0.08f;
+        rigidbody.linearDamping = 0f;
+        rigidbody.angularDamping = 0.05f;
         rigidbody.useGravity = true;
         rigidbody.isKinematic = false;
         rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+        rigidbody.interpolation = RigidbodyInterpolation.None;
 
         root.AddComponent<ArenaProjectile>();
         AttachVisual(root, visualPrefab);
@@ -96,6 +97,59 @@ public static class ArenaBallAssetInstaller
         {
             Object.DestroyImmediate(collider);
         }
+
+        AlignVisualToRoot(root);
+    }
+
+    public static bool AlignVisualToRoot(GameObject root)
+    {
+        if (root == null || root.transform.childCount == 0)
+        {
+            return false;
+        }
+
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        if (renderers == null || renderers.Length == 0)
+        {
+            return false;
+        }
+
+        Bounds bounds = default;
+        bool hasBounds = false;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            if (!hasBounds)
+            {
+                bounds = renderer.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        if (!hasBounds)
+        {
+            return false;
+        }
+
+        Transform visualRoot = root.transform.GetChild(0);
+        Vector3 localCenter = root.transform.InverseTransformPoint(bounds.center);
+        if (localCenter.sqrMagnitude <= 0.000001f)
+        {
+            return false;
+        }
+
+        visualRoot.localPosition -= localCenter;
+        EditorUtility.SetDirty(root);
+        return true;
     }
 
     private static PhysicsMaterial LoadOrCreateProjectileMaterial()
