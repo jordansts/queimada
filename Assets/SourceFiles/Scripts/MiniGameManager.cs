@@ -1,58 +1,53 @@
 using StarterAssets;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using Unity.Cinemachine;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
+[RequireComponent(typeof(ArenaBallService))]
 public class MiniGameManager : MonoBehaviour
 {
-    private const string ArenaRootName = "Arena";
-    private const string PlayFieldRootName = "PlayField";
-    private const string PlayerSceneRootName = "PlayerRobotScene";
-    private const string BotSceneRootName = "AIRobotScene";
-    private const string ArenaHudPrefabPath = "UI/ArenaHudCanvas";
+    private readonly struct SceneCombatantBinding
+    {
+        public SceneCombatantBinding(GameObject sceneRoot, GameObject actorRoot, ArenaBallAttachmentPoints attachmentPoints)
+        {
+            SceneRoot = sceneRoot;
+            ActorRoot = actorRoot;
+            AttachmentPoints = attachmentPoints;
+        }
+
+        public GameObject SceneRoot { get; }
+        public GameObject ActorRoot { get; }
+        public ArenaBallAttachmentPoints AttachmentPoints { get; }
+    }
 
     public static MiniGameManager Instance { get; private set; }
+
+    private const string PlayerSceneRootName = "PlayerRobotScene";
+    private const string BotSceneRootName = "AIRobotScene";
+
+    [Header("Scene References")]
+    [SerializeField] private Transform arenaRoot;
+    [SerializeField] private Transform playFieldRoot;
+    [SerializeField] private Collider playFieldSurfaceCollider;
+    [SerializeField] private Light arenaDirectionalLight;
+    [SerializeField] private ArenaHudView hudView;
+    [SerializeField] private Collider[] invisibleWalls;
 
     [SerializeField] private float combatantGroundClearance = 0.16f;
     [SerializeField] private float ballGroundClearance = 0.06f;
     [SerializeField] private float ballBobbingAmount = 0.12f;
     [SerializeField] private float ballVisualRadius = 0.34f;
-    [SerializeField] private float ballVisualScale = 0.72f;
-    [SerializeField] private float arenaHorizontalScale = 1.45f;
-    [SerializeField] private float boundaryWallHeight = 3.5f;
-    [SerializeField] private float boundaryWallThickness = 0.6f;
-    [SerializeField] private float boundaryInset = 0.15f;
-    [SerializeField] private float arenaDirectionalLightIntensity = 1.35f;
-    [SerializeField] private Color arenaDirectionalLightColor = new Color(1f, 0.956f, 0.875f, 1f);
-    [SerializeField] private Vector3 arenaDirectionalLightEuler = new Vector3(48f, -32f, 0f);
-    [SerializeField] private Color arenaAmbientLightColor = new Color(0.7f, 0.73f, 0.78f, 1f);
-    [SerializeField] private float arenaAmbientIntensity = 0.85f;
 
     public ArenaCombatant PlayerCombatant { get; private set; }
     public ArenaCombatant BotCombatant { get; private set; }
     public Transform CurrentLooseBallTransform => ballService != null ? ballService.CurrentLooseBallTransform : null;
-    public float BallVisualScale => ballVisualScale;
 
     private readonly Vector3 playerArenaSpawn = new Vector3(-6.88f, 7.2f, -7.29f);
     private readonly Vector3 botArenaSpawn = new Vector3(7.41f, 6.78f, -2.91f);
-    private readonly Color crosshairColor = new Color(0.35f, 0.95f, 1f, 0.95f);
-    private readonly Color playerHudColor = new Color(0.25f, 0.9f, 1f);
-    private readonly Color botHudColor = new Color(1f, 0.4f, 0.2f);
     private bool scenePrepared;
     private ArenaLayout arenaLayout;
-    private Transform arenaRoot;
-    private Transform playFieldRoot;
-    private BoxCollider playFieldSurfaceCollider;
-    private Transform boundaryRoot;
     private ArenaBallService ballService;
-    private ArenaHudView hudView;
-    private Material cachedBotRedMaterial;
-    private Material cachedBotBlueMaterial;
 
     private struct ArenaLayout
     {
@@ -61,19 +56,6 @@ public class MiniGameManager : MonoBehaviour
         public Vector3 PlayerSpawn;
         public Vector3 BotSpawn;
         public Vector3 BallSpawn;
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void Bootstrap()
-    {
-        if (Instance != null)
-        {
-            return;
-        }
-
-        GameObject managerObject = new GameObject(nameof(MiniGameManager));
-        DontDestroyOnLoad(managerObject);
-        managerObject.AddComponent<MiniGameManager>();
     }
 
     private void Awake()
@@ -85,8 +67,13 @@ public class MiniGameManager : MonoBehaviour
         }
 
         Instance = this;
-        ballService = GetOrAddComponent<ArenaBallService>(gameObject);
-        EnsureHudView();
+        ballService = GetComponent<ArenaBallService>();
+        if (ballService == null)
+        {
+            Debug.LogError("MiniGameManager requires ArenaBallService on the same GameObject.", this);
+            enabled = false;
+            return;
+        }
     }
 
     private void OnEnable()
@@ -126,222 +113,126 @@ public class MiniGameManager : MonoBehaviour
         }
 
         scenePrepared = true;
-        CacheArenaRoot();
-        CachePlayField();
-        ExpandArenaHorizontally();
-        EnsurePlayFieldSurfaceCollider();
-        RebuildPlayFieldBoundaries();
-        EnsureArenaLighting();
-        EnsureFallbackCamera();
+        ValidateSceneReferences();
         RefreshArenaLayout();
-        ballService.Configure(ResolveGroundPosition, ballVisualScale, ballVisualRadius, ballBobbingAmount, ballGroundClearance);
-        SpawnCombatants();
-        SpawnArenaBall(GetArenaBallSpawnPoint());
-    }
-
-    private void SpawnCombatants()
-    {
-        Quaternion playerRotation = Quaternion.Euler(0f, 35f, 0f);
-        Quaternion botRotation = Quaternion.Euler(0f, -145f, 0f);
-        GameObject playerInstance;
-        GameObject botInstance;
-
-        if (!TryFindSceneCombatants(out playerInstance, out botInstance))
+        ballService.Configure(ResolveGroundPosition, ballVisualRadius, ballBobbingAmount, ballGroundClearance);
+        if (!SpawnCombatants())
         {
-            Debug.LogError("MiniGameManager could not find two scene combatants with CharacterController in GetStarted_Scene.");
             return;
         }
 
-        Vector3 groundedPlayerSpawn = ResolveCombatantSpawnPosition(playerInstance, GetPlayerArenaSpawnPoint());
-        Vector3 groundedBotSpawn = ResolveCombatantSpawnPosition(botInstance, GetBotArenaSpawnPoint());
+        SpawnArenaBall(GetArenaBallSpawnPoint());
+    }
 
-        PlayerCombatant = ConfigurePlayer(playerInstance, groundedPlayerSpawn, playerRotation);
-        BotCombatant = ConfigureBot(botInstance, groundedBotSpawn, botRotation);
+    private bool SpawnCombatants()
+    {
+        Quaternion playerRotation = Quaternion.Euler(0f, 35f, 0f);
+        Quaternion botRotation = Quaternion.Euler(0f, -145f, 0f);
+        SceneCombatantBinding playerBinding;
+        SceneCombatantBinding botBinding;
+
+        if (!TryResolveSceneCombatants(out playerBinding, out botBinding))
+        {
+            return false;
+        }
+
+        Vector3 groundedPlayerSpawn = ResolveCombatantSpawnPosition(playerBinding.ActorRoot, GetPlayerArenaSpawnPoint());
+        Vector3 groundedBotSpawn = ResolveCombatantSpawnPosition(botBinding.ActorRoot, GetBotArenaSpawnPoint());
+
+        PlayerCombatant = ConfigurePlayer(playerBinding, groundedPlayerSpawn, playerRotation);
+        BotCombatant = ConfigureBot(botBinding, groundedBotSpawn, botRotation);
 
         if (PlayerCombatant != null && BotCombatant != null)
         {
             PlayerCombatant.SetOpponent(BotCombatant);
             BotCombatant.SetOpponent(PlayerCombatant);
         }
+
+        return PlayerCombatant != null && BotCombatant != null;
     }
 
-    private bool TryFindSceneCombatants(out GameObject playerObject, out GameObject botObject)
+    private bool TryResolveSceneCombatants(out SceneCombatantBinding playerBinding, out SceneCombatantBinding botBinding)
     {
-        playerObject = null;
-        botObject = null;
+        playerBinding = default;
+        botBinding = default;
 
-        GameObject namedPlayerRoot = FindLoadedSceneObject(PlayerSceneRootName);
-        GameObject namedBotRoot = FindLoadedSceneObject(BotSceneRootName);
-        if (namedPlayerRoot != null && namedBotRoot != null)
+        GameObject namedPlayerRoot = FindRequiredSceneRoot(PlayerSceneRootName);
+        GameObject namedBotRoot = FindRequiredSceneRoot(BotSceneRootName);
+
+        if (namedPlayerRoot == null || namedBotRoot == null)
         {
-            playerObject = GetActorRoot(namedPlayerRoot);
-            botObject = GetActorRoot(namedBotRoot);
-            return playerObject != null && botObject != null && playerObject != botObject;
-        }
-
-        CharacterController[] controllers = FindObjectsByType<CharacterController>(FindObjectsInactive.Include);
-
-        if (controllers == null || controllers.Length == 0)
-        {
+            Debug.LogError(
+                $"MiniGameManager requires '{PlayerSceneRootName}' and '{BotSceneRootName}' roots present in the scene.",
+                this);
             return false;
         }
 
-        GameObject[] candidates = new GameObject[controllers.Length];
-        int candidateCount = 0;
-
-        foreach (CharacterController controller in controllers)
+        if (!TryCreateSceneCombatantBinding(namedPlayerRoot, out playerBinding))
         {
-            if (controller == null)
-            {
-                continue;
-            }
-
-            GameObject actorRoot = GetActorRoot(controller.gameObject);
-            if (actorRoot == null)
-            {
-                continue;
-            }
-
-            if (!actorRoot.scene.IsValid() || !actorRoot.scene.isLoaded)
-            {
-                continue;
-            }
-
-            if (actorRoot == gameObject)
-            {
-                continue;
-            }
-
-            bool alreadyAdded = false;
-            for (int i = 0; i < candidateCount; i++)
-            {
-                if (candidates[i] == actorRoot)
-                {
-                    alreadyAdded = true;
-                    break;
-                }
-            }
-
-            if (alreadyAdded)
-            {
-                continue;
-            }
-
-            candidates[candidateCount++] = actorRoot;
-        }
-
-        if (candidateCount < 2)
-        {
+            Debug.LogError($"MiniGameManager could not resolve a valid combatant from '{PlayerSceneRootName}'.", namedPlayerRoot);
             return false;
         }
 
-        float bestPlayerScore = float.MaxValue;
-        int playerIndex = -1;
-        Vector3 desiredPlayerSpawn = GetPlayerArenaSpawnPoint();
-
-        for (int i = 0; i < candidateCount; i++)
+        if (!TryCreateSceneCombatantBinding(namedBotRoot, out botBinding))
         {
-            GameObject candidate = candidates[i];
-            float score = Vector3.SqrMagnitude(candidate.transform.position - desiredPlayerSpawn);
-            if (GetComponentInSelfOrChildren<PlayerInput>(candidate) != null)
-            {
-                score -= 100000f;
-            }
-
-            if (score < bestPlayerScore)
-            {
-                bestPlayerScore = score;
-                playerIndex = i;
-            }
-        }
-
-        if (playerIndex < 0)
-        {
+            Debug.LogError($"MiniGameManager could not resolve a valid combatant from '{BotSceneRootName}'.", namedBotRoot);
             return false;
         }
 
-        float bestBotScore = float.MaxValue;
-        int botIndex = -1;
-        Vector3 desiredBotSpawn = GetBotArenaSpawnPoint();
-
-        for (int i = 0; i < candidateCount; i++)
+        if (playerBinding.ActorRoot == botBinding.ActorRoot)
         {
-            if (i == playerIndex)
-            {
-                continue;
-            }
-
-            GameObject candidate = candidates[i];
-            float score = Vector3.SqrMagnitude(candidate.transform.position - desiredBotSpawn);
-            if (GetComponentInSelfOrChildren<PlayerInput>(candidate) != null)
-            {
-                score += 100000f;
-            }
-
-            if (score < bestBotScore)
-            {
-                bestBotScore = score;
-                botIndex = i;
-            }
-        }
-
-        if (botIndex < 0)
-        {
+            Debug.LogError("MiniGameManager resolved the same actor root for player and bot. Fix the scene roots.", this);
             return false;
         }
 
-        playerObject = candidates[playerIndex];
-        botObject = candidates[botIndex];
         return true;
     }
 
-    private ArenaCombatant ConfigurePlayer(GameObject playerObject, Vector3 spawnPosition, Quaternion spawnRotation)
+    private ArenaCombatant ConfigurePlayer(SceneCombatantBinding binding, Vector3 spawnPosition, Quaternion spawnRotation)
     {
-        GameObject sceneRoot = GetSceneInstanceRoot(playerObject);
-        sceneRoot.name = "PlayerRobot";
-        sceneRoot.tag = "Player";
-
-        GameObject actorRoot = GetActorRoot(sceneRoot);
+        GameObject sceneRoot = binding.SceneRoot;
+        GameObject actorRoot = binding.ActorRoot;
         actorRoot.tag = "Player";
 
         ConfigureGroundMask(actorRoot);
-        GetOrAddComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, true);
+        EnsureGameplayComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, true);
 
-        ArenaCombatant combatant = PrepareCombatant(actorRoot, "Player", true, spawnPosition, spawnRotation);
-        GetOrAddThrowClipPlayer(actorRoot).Initialize(actorRoot.transform);
-        GetOrAddComponent<ArenaPlayerShooter>(actorRoot).Initialize(combatant);
+        ArenaCombatant combatant = PrepareCombatant(actorRoot, binding.AttachmentPoints, "Player", true, spawnPosition, spawnRotation);
+        EnsureThrowClipPlayer(actorRoot).Initialize();
+        EnsureGameplayComponent<ArenaPlayerShooter>(actorRoot).Initialize(combatant);
 
         return combatant;
     }
 
-    private ArenaCombatant ConfigureBot(GameObject botObject, Vector3 spawnPosition, Quaternion spawnRotation)
+    private ArenaCombatant ConfigureBot(SceneCombatantBinding binding, Vector3 spawnPosition, Quaternion spawnRotation)
     {
-        GameObject sceneRoot = GetSceneInstanceRoot(botObject);
-        sceneRoot.name = "AIRobot";
-        sceneRoot.tag = "Untagged";
-
-        GameObject actorRoot = GetActorRoot(sceneRoot);
+        GameObject sceneRoot = binding.SceneRoot;
+        GameObject actorRoot = binding.ActorRoot;
         actorRoot.tag = "Untagged";
 
         ConfigureGroundMask(actorRoot);
-        GetOrAddComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, false);
-        ApplyBotVisualMaterial(sceneRoot);
+        EnsureGameplayComponent<ArenaRuntimeRig>(actorRoot).Initialize(sceneRoot.transform, false);
 
-        ArenaCombatant combatant = PrepareCombatant(actorRoot, "AI Robot", false, spawnPosition, spawnRotation);
-        GetOrAddThrowClipPlayer(actorRoot).Initialize(actorRoot.transform);
-        GetOrAddComponent<ArenaBotController>(actorRoot).Initialize(combatant);
+        ArenaCombatant combatant = PrepareCombatant(actorRoot, binding.AttachmentPoints, "AI Robot", false, spawnPosition, spawnRotation);
+        EnsureThrowClipPlayer(actorRoot).Initialize();
+        EnsureGameplayComponent<ArenaBotController>(actorRoot).Initialize(combatant);
 
         return combatant;
     }
-    private ArenaCombatant PrepareCombatant(GameObject actor, string displayName, bool isPlayerControlled, Vector3 spawnPosition, Quaternion spawnRotation)
+    private ArenaCombatant PrepareCombatant(
+        GameObject actor,
+        ArenaBallAttachmentPoints attachmentPoints,
+        string displayName,
+        bool isPlayerControlled,
+        Vector3 spawnPosition,
+        Quaternion spawnRotation)
     {
-        ArenaKnockbackMotor knockbackMotor = GetOrAddComponent<ArenaKnockbackMotor>(actor);
-        ArenaCombatant combatant = GetOrAddComponent<ArenaCombatant>(actor);
+        ArenaKnockbackMotor knockbackMotor = EnsureGameplayComponent<ArenaKnockbackMotor>(actor);
+        ArenaCombatant combatant = EnsureGameplayComponent<ArenaCombatant>(actor);
         PositionCombatantOnGround(actor, spawnPosition);
         Vector3 alignedSpawnPosition = actor.transform.position;
         combatant.Initialize(displayName, isPlayerControlled, alignedSpawnPosition, spawnRotation, knockbackMotor);
 
-        ArenaBallAttachmentPoints attachmentPoints = ResolveBallAttachmentPoints(actor.transform);
         combatant.SetAttachmentPoints(
             attachmentPoints != null ? attachmentPoints.HeldBallAnchor : null,
             attachmentPoints != null ? attachmentPoints.ThrowOrigin : null,
@@ -361,143 +252,30 @@ public class MiniGameManager : MonoBehaviour
             return attachmentPoints;
         }
 
-        Debug.LogWarning(
-            $"MiniGameManager is rebuilding ball attachment points at runtime for '{root.name}'. " +
-            "Run Tools/Arena/Rebuild Held Ball Prefabs to persist the proper Unity-side setup.",
+        Debug.LogError(
+            $"MiniGameManager could not find valid ArenaBallAttachmentPoints for '{root.name}'. " +
+            "Fix the prefab/scene setup instead of relying on runtime reconstruction.",
             root);
-
-        Transform heldBallAnchor = BuildHeldBallAnchor(root);
-        Transform throwOrigin = BuildThrowOrigin(root);
-        GameObject heldBallVisual = heldBallAnchor != null ? heldBallAnchor.Find("HeldArenaBall")?.gameObject : null;
-
-        if (heldBallVisual == null)
-        {
-            Debug.LogError($"MiniGameManager could not find HeldArenaBall for '{root.name}'. Run Tools/Arena/Rebuild Held Ball Prefabs.");
-        }
-
-        if (attachmentPoints == null)
-        {
-            attachmentPoints = root.gameObject.AddComponent<ArenaBallAttachmentPoints>();
-        }
-
-        attachmentPoints.Configure(heldBallAnchor, throwOrigin, heldBallVisual);
-
-        return attachmentPoints;
+        return null;
     }
 
-    private Transform BuildHeldBallAnchor(Transform root)
+    private bool TryCreateSceneCombatantBinding(GameObject sceneRoot, out SceneCombatantBinding binding)
     {
-        Transform existingWeapon = FindChildRecursive(root, "ArenaWeapon");
-        if (existingWeapon != null)
+        binding = default;
+        if (sceneRoot == null)
         {
-            Destroy(existingWeapon.gameObject);
+            return false;
         }
 
-        Transform existingHeldBallAnchor = FindChildRecursive(root, "HeldBallAnchor");
-        if (existingHeldBallAnchor != null)
+        GameObject actorRoot = GetActorRoot(sceneRoot);
+        ArenaBallAttachmentPoints attachmentPoints = ResolveBallAttachmentPoints(sceneRoot.transform);
+        if (actorRoot == null || attachmentPoints == null)
         {
-            return existingHeldBallAnchor;
+            return false;
         }
 
-        Transform hand = FindPreferredRightHand(root);
-        if (hand == null)
-        {
-            hand = root;
-        }
-
-        GameObject heldBallAnchor = new GameObject("HeldBallAnchor");
-        heldBallAnchor.transform.SetParent(hand, false);
-        heldBallAnchor.transform.localPosition = CalculatePalmAnchorLocalPosition(root, hand);
-        heldBallAnchor.transform.localRotation = Quaternion.identity;
-
-        return heldBallAnchor.transform;
-    }
-
-    private Transform BuildThrowOrigin(Transform root)
-    {
-        Transform existingThrowOrigin = FindChildRecursive(root, "ThrowOrigin");
-        if (existingThrowOrigin != null)
-        {
-            return existingThrowOrigin;
-        }
-
-        GameObject throwOrigin = new GameObject("ThrowOrigin");
-        Transform hand = FindPreferredRightHand(root);
-        throwOrigin.transform.SetParent(hand != null ? hand : root, false);
-        throwOrigin.transform.localPosition = CalculatePalmAnchorLocalPosition(root, throwOrigin.transform.parent) + new Vector3(0f, 0f, 0.02f);
-        throwOrigin.transform.localRotation = Quaternion.identity;
-
-        return throwOrigin.transform;
-    }
-
-    private static Transform FindPreferredRightHand(Transform root)
-    {
-        Transform handProp = FindChildRecursive(root, "B-handProp.R");
-        if (handProp != null)
-        {
-            return handProp;
-        }
-
-        Transform hand = FindChildRecursive(root, "Right_Hand");
-        if (hand != null)
-        {
-            return hand;
-        }
-
-        hand = FindChildRecursive(root, "RightHand");
-        if (hand != null)
-        {
-            return hand;
-        }
-
-        return FindChildRecursive(root, "B-hand.R");
-    }
-
-    private static Vector3 CalculatePalmAnchorLocalPosition(Transform root, Transform hand)
-    {
-        if (root == null || hand == null)
-        {
-            return Vector3.zero;
-        }
-
-        string[] fingerNames =
-        {
-            "Right_IndexProximal",
-            "Right_MiddleProximal",
-            "Right_RingProximal",
-            "Right_PinkyProximal"
-        };
-
-        Vector3 fingerAverage = Vector3.zero;
-        int fingerCount = 0;
-        for (int i = 0; i < fingerNames.Length; i++)
-        {
-            Transform finger = FindChildRecursive(root, fingerNames[i]);
-            if (finger == null)
-            {
-                continue;
-            }
-
-            fingerAverage += hand.InverseTransformPoint(finger.position);
-            fingerCount++;
-        }
-
-        if (fingerCount == 0)
-        {
-            return new Vector3(0.02f, 0.01f, 0.16f);
-        }
-
-        Vector3 anchorLocalPosition = fingerAverage / fingerCount;
-        Transform thumb = FindChildRecursive(root, "Right_ThumbProximal");
-        if (thumb != null)
-        {
-            Vector3 thumbLocalPosition = hand.InverseTransformPoint(thumb.position);
-            anchorLocalPosition = Vector3.Lerp(anchorLocalPosition, thumbLocalPosition, 0.18f);
-        }
-
-        anchorLocalPosition *= 0.82f;
-        anchorLocalPosition += new Vector3(0f, 0f, 0.015f);
-        return anchorLocalPosition;
+        binding = new SceneCombatantBinding(sceneRoot, actorRoot, attachmentPoints);
+        return true;
     }
 
     private Vector3 ResolveCombatantSpawnPosition(GameObject actorPrefab, Vector3 desiredPosition)
@@ -560,73 +338,61 @@ public class MiniGameManager : MonoBehaviour
         }
     }
 
-    private void EnsureFallbackCamera()
+    private void ValidateSceneReferences()
     {
-        if (Camera.main != null)
+        if (arenaRoot == null)
         {
-            if (Camera.main.GetComponent<CinemachineBrain>() == null)
-            {
-                Camera.main.gameObject.AddComponent<CinemachineBrain>();
-            }
+            Debug.LogError("MiniGameManager requires arenaRoot assigned from the scene.", this);
+        }
 
+        if (playFieldRoot == null)
+        {
+            Debug.LogError("MiniGameManager requires playFieldRoot assigned from the scene.", this);
+        }
+
+        if (playFieldSurfaceCollider == null || playFieldSurfaceCollider.isTrigger)
+        {
+            Debug.LogError("MiniGameManager requires a non-trigger playFieldSurfaceCollider assigned from the scene.", this);
+        }
+
+        if (arenaDirectionalLight == null || arenaDirectionalLight.type != LightType.Directional)
+        {
+            Debug.LogError("MiniGameManager requires a directional light assigned from the scene.", this);
+        }
+
+        if (Camera.main == null)
+        {
+            Debug.LogError("MiniGameManager could not find a Main Camera in the scene.", this);
+        }
+
+        if (Camera.main != null && Camera.main.GetComponent<CinemachineBrain>() == null)
+        {
+            Debug.LogError("Main Camera is missing CinemachineBrain. Configure it in the scene.", Camera.main);
+        }
+
+        if (hudView == null)
+        {
+            Debug.LogError("MiniGameManager requires hudView assigned from the scene.", this);
+        }
+
+        if (FindRequiredSceneRoot(PlayerSceneRootName) == null || FindRequiredSceneRoot(BotSceneRootName) == null)
+        {
+            Debug.LogError(
+                $"MiniGameManager requires '{PlayerSceneRootName}' and '{BotSceneRootName}' roots present in the scene.",
+                this);
+        }
+
+        ValidateInvisibleWalls();
+    }
+
+    private void RefreshHud()
+    {
+        if (hudView == null)
+        {
             return;
         }
 
-        GameObject fallbackCamera = new GameObject("FallbackMainCamera", typeof(Camera), typeof(AudioListener), typeof(CinemachineBrain));
-        fallbackCamera.tag = "MainCamera";
-        fallbackCamera.transform.position = new Vector3(0f, 10f, -14f);
-        fallbackCamera.transform.rotation = Quaternion.Euler(25f, 0f, 0f);
-    }
-
-    private void EnsureArenaLighting()
-    {
-        Light arenaLight = FindArenaDirectionalLight();
-        if (arenaLight == null)
-        {
-            GameObject lightObject = new GameObject("ArenaDirectionalLight");
-            arenaLight = lightObject.AddComponent<Light>();
-            arenaLight.type = LightType.Directional;
-        }
-
-        arenaLight.type = LightType.Directional;
-        arenaLight.color = arenaDirectionalLightColor;
-        arenaLight.intensity = arenaDirectionalLightIntensity;
-        arenaLight.shadows = LightShadows.Soft;
-        arenaLight.transform.rotation = Quaternion.Euler(arenaDirectionalLightEuler);
-
-        RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = arenaAmbientLightColor;
-        RenderSettings.ambientIntensity = arenaAmbientIntensity;
-    }
-
-    private Light FindArenaDirectionalLight()
-    {
-        Light fallbackDirectional = null;
-
-        foreach (Light lightComponent in FindObjectsByType<Light>(FindObjectsInactive.Exclude))
-        {
-            if (lightComponent == null)
-            {
-                continue;
-            }
-
-            if (lightComponent.type != LightType.Directional)
-            {
-                continue;
-            }
-
-            if (lightComponent.name == "Directional Light" || lightComponent.name == "ArenaDirectionalLight")
-            {
-                return lightComponent;
-            }
-
-            if (fallbackDirectional == null)
-            {
-                fallbackDirectional = lightComponent;
-            }
-        }
-
-        return fallbackDirectional;
+        hudView.Refresh(PlayerCombatant, BotCombatant, CurrentLooseBallTransform);
     }
 
     public void HandleDefeat(ArenaCombatant victim)
@@ -645,48 +411,6 @@ public class MiniGameManager : MonoBehaviour
         victim.Respawn();
     }
 
-    private void EnsureHudView()
-    {
-        if (hudView != null)
-        {
-            return;
-        }
-
-        GameObject prefab = Resources.Load<GameObject>(ArenaHudPrefabPath);
-        if (prefab == null)
-        {
-            Debug.LogError($"MiniGameManager could not load HUD prefab at Resources/{ArenaHudPrefabPath}.", this);
-            return;
-        }
-
-        GameObject hudObject = Instantiate(prefab);
-        hudObject.name = prefab.name;
-        DontDestroyOnLoad(hudObject);
-        hudView = hudObject.GetComponent<ArenaHudView>();
-        if (hudView == null)
-        {
-            Debug.LogError("Arena HUD prefab is missing ArenaHudView.", hudObject);
-            return;
-        }
-
-        hudView.Configure(playerHudColor, botHudColor, crosshairColor);
-    }
-
-    private void RefreshHud()
-    {
-        if (hudView == null)
-        {
-            EnsureHudView();
-        }
-
-        if (hudView == null)
-        {
-            return;
-        }
-
-        hudView.Refresh(PlayerCombatant, BotCombatant, CurrentLooseBallTransform);
-    }
-
     private void HandleDebugShortcuts()
     {
         if (WasDebugKeyPressed(Key.F2))
@@ -702,7 +426,6 @@ public class MiniGameManager : MonoBehaviour
 
     private bool WasDebugKeyPressed(Key key)
     {
-#if ENABLE_INPUT_SYSTEM
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null)
         {
@@ -715,14 +438,6 @@ public class MiniGameManager : MonoBehaviour
             Key.F3 => keyboard.f3Key.wasPressedThisFrame,
             _ => false
         };
-#else
-        return key switch
-        {
-            Key.F2 => Input.GetKeyDown(KeyCode.F2),
-            Key.F3 => Input.GetKeyDown(KeyCode.F3),
-            _ => false
-        };
-#endif
     }
 
     private void ToggleBotCombatant()
@@ -764,7 +479,7 @@ public class MiniGameManager : MonoBehaviour
         PlayerCombatant.GiveBall();
     }
 
-    private static T GetOrAddComponent<T>(GameObject target) where T : Component
+    private static T EnsureGameplayComponent<T>(GameObject target) where T : Component
     {
         T component = target.GetComponent<T>();
         if (component == null)
@@ -781,15 +496,6 @@ public class MiniGameManager : MonoBehaviour
         return component != null ? component : target.GetComponentInChildren<T>(true);
     }
 
-    private static void SetComponentEnabled<T>(GameObject target, bool enabled) where T : Behaviour
-    {
-        T component = GetComponentInSelfOrChildren<T>(target);
-        if (component != null)
-        {
-            component.enabled = enabled;
-        }
-    }
-
     private static void ConfigureGroundMask(GameObject target)
     {
         ThirdPersonController controller = GetComponentInSelfOrChildren<ThirdPersonController>(target);
@@ -799,120 +505,9 @@ public class MiniGameManager : MonoBehaviour
         }
     }
 
-    private void ApplyBotVisualMaterial(GameObject sceneRoot)
+    private static ArenaThrowClipPlayer EnsureThrowClipPlayer(GameObject target)
     {
-        if (sceneRoot == null)
-        {
-            return;
-        }
-
-        Material redMaterial = GetBotRedMaterial();
-        Material blueMaterial = GetBotBlueMaterial();
-        if (redMaterial == null || blueMaterial == null)
-        {
-            return;
-        }
-
-        foreach (Renderer renderer in sceneRoot.GetComponentsInChildren<Renderer>(true))
-        {
-            if (renderer == null)
-            {
-                continue;
-            }
-
-            Material[] sharedMaterials = renderer.sharedMaterials;
-            bool changed = false;
-            for (int i = 0; i < sharedMaterials.Length; i++)
-            {
-                Material sharedMaterial = sharedMaterials[i];
-                if (sharedMaterial == null)
-                {
-                    continue;
-                }
-
-                if (sharedMaterial == blueMaterial)
-                {
-                    sharedMaterials[i] = redMaterial;
-                    changed = true;
-                }
-            }
-
-            if (changed)
-            {
-                renderer.sharedMaterials = sharedMaterials;
-            }
-        }
-    }
-
-    private Material GetBotRedMaterial()
-    {
-        if (cachedBotRedMaterial != null)
-        {
-            return cachedBotRedMaterial;
-        }
-
-        foreach (Material material in Resources.FindObjectsOfTypeAll<Material>())
-        {
-            if (material != null && material.name == "Material_Simple_Red")
-            {
-                cachedBotRedMaterial = material;
-                return cachedBotRedMaterial;
-            }
-        }
-
-#if UNITY_EDITOR
-        cachedBotRedMaterial = AssetDatabase.LoadAssetAtPath<Material>(
-            "Assets/Kevin Iglesias/Human Character Dummy/Materials/HumanDummy_Red.mat");
-#endif
-        if (cachedBotRedMaterial != null)
-        {
-            return cachedBotRedMaterial;
-        }
-
-        foreach (Material material in Resources.FindObjectsOfTypeAll<Material>())
-        {
-            if (material != null && material.name == "HumanDummy_Red")
-            {
-                cachedBotRedMaterial = material;
-                break;
-            }
-        }
-
-        return cachedBotRedMaterial;
-    }
-
-    private Material GetBotBlueMaterial()
-    {
-        if (cachedBotBlueMaterial != null)
-        {
-            return cachedBotBlueMaterial;
-        }
-
-#if UNITY_EDITOR
-        cachedBotBlueMaterial = AssetDatabase.LoadAssetAtPath<Material>(
-            "Assets/Kevin Iglesias/Human Character Dummy/Materials/HumanDummy_Blue.mat");
-#endif
-
-        if (cachedBotBlueMaterial != null)
-        {
-            return cachedBotBlueMaterial;
-        }
-
-        foreach (Material material in Resources.FindObjectsOfTypeAll<Material>())
-        {
-            if (material != null && material.name == "HumanDummy_Blue")
-            {
-                cachedBotBlueMaterial = material;
-                break;
-            }
-        }
-
-        return cachedBotBlueMaterial;
-    }
-
-    private static ArenaThrowClipPlayer GetOrAddThrowClipPlayer(GameObject target)
-    {
-        return GetOrAddComponent<ArenaThrowClipPlayer>(target);
+        return EnsureGameplayComponent<ArenaThrowClipPlayer>(target);
     }
 
     private static GameObject GetActorRoot(GameObject instanceRoot)
@@ -932,29 +527,9 @@ public class MiniGameManager : MonoBehaviour
         return instanceRoot;
     }
 
-    private static GameObject GetSceneInstanceRoot(GameObject instanceRoot)
+    private static GameObject FindRequiredSceneRoot(string objectName)
     {
-        Transform root = instanceRoot.transform.root;
-        return root != null ? root.gameObject : instanceRoot;
-    }
-
-    private static GameObject FindLoadedSceneObject(string objectName)
-    {
-        Scene activeScene = SceneManager.GetActiveScene();
-        if (!activeScene.IsValid() || !activeScene.isLoaded)
-        {
-            return null;
-        }
-
-        foreach (GameObject rootObject in activeScene.GetRootGameObjects())
-        {
-            if (rootObject != null && rootObject.name == objectName)
-            {
-                return rootObject;
-            }
-        }
-
-        return null;
+        return GameObject.Find(objectName);
     }
 
     public static Transform FindChildRecursive(Transform parent, string childName)
@@ -991,6 +566,15 @@ public class MiniGameManager : MonoBehaviour
         ballService?.SpawnArenaBall(position, pickupDelay);
     }
 
+    public ArenaCombatant FindBestBallClaimant(Vector3 ballPosition, float claimRadius)
+    {
+        ArenaCombatant bestCombatant = null;
+        float bestDistance = float.MaxValue;
+        EvaluateBallClaimant(PlayerCombatant, ballPosition, claimRadius, ref bestCombatant, ref bestDistance);
+        EvaluateBallClaimant(BotCombatant, ballPosition, claimRadius, ref bestCombatant, ref bestDistance);
+        return bestCombatant;
+    }
+
     private Vector3 GetArenaBallSpawnPoint()
     {
         return arenaLayout.IsValid ? arenaLayout.BallSpawn : Vector3.Lerp(playerArenaSpawn, botArenaSpawn, 0.5f);
@@ -1006,7 +590,8 @@ public class MiniGameManager : MonoBehaviour
         ArenaLayout layout = default;
         if (!TryGetPlayFieldBounds(out Bounds arenaBounds))
         {
-            arenaBounds = new Bounds(Vector3.zero, new Vector3(24f, 4f, 24f));
+            Debug.LogError("MiniGameManager could not build arena layout because play field bounds are unavailable.", this);
+            return layout;
         }
 
         Vector3 center = arenaBounds.center;
@@ -1037,124 +622,6 @@ public class MiniGameManager : MonoBehaviour
         return arenaLayout.IsValid ? arenaLayout.BotSpawn : botArenaSpawn;
     }
 
-    private void CacheArenaRoot()
-    {
-        if (arenaRoot != null)
-        {
-            return;
-        }
-
-        GameObject arenaObject = GameObject.Find(ArenaRootName);
-        arenaRoot = arenaObject != null ? arenaObject.transform : null;
-    }
-
-    private void CachePlayField()
-    {
-        if (playFieldRoot != null)
-        {
-            return;
-        }
-
-        GameObject playFieldObject = GameObject.Find(PlayFieldRootName);
-        playFieldRoot = playFieldObject != null ? playFieldObject.transform : null;
-    }
-
-    private void ExpandArenaHorizontally()
-    {
-        if (arenaRoot == null)
-        {
-            return;
-        }
-
-        if (arenaHorizontalScale <= 0f || Mathf.Approximately(arenaHorizontalScale, 1f))
-        {
-            return;
-        }
-
-        Vector3 localScale = arenaRoot.localScale;
-        arenaRoot.localScale = new Vector3(
-            localScale.x * arenaHorizontalScale,
-            localScale.y,
-            localScale.z * arenaHorizontalScale);
-    }
-
-    private void EnsurePlayFieldSurfaceCollider()
-    {
-        if (playFieldRoot == null)
-        {
-            return;
-        }
-
-        if (!TryCalculateBounds(playFieldRoot, out Bounds worldBounds))
-        {
-            return;
-        }
-
-        playFieldSurfaceCollider = playFieldRoot.GetComponent<BoxCollider>();
-        if (playFieldSurfaceCollider == null)
-        {
-            playFieldSurfaceCollider = playFieldRoot.gameObject.AddComponent<BoxCollider>();
-        }
-
-        Vector3 localCenter = playFieldRoot.InverseTransformPoint(worldBounds.center);
-        Vector3 lossyScale = playFieldRoot.lossyScale;
-        float scaleX = Mathf.Approximately(lossyScale.x, 0f) ? 1f : Mathf.Abs(lossyScale.x);
-        float scaleY = Mathf.Approximately(lossyScale.y, 0f) ? 1f : Mathf.Abs(lossyScale.y);
-        float scaleZ = Mathf.Approximately(lossyScale.z, 0f) ? 1f : Mathf.Abs(lossyScale.z);
-        Vector3 localSize = new Vector3(
-            worldBounds.size.x / scaleX,
-            worldBounds.size.y / scaleY,
-            worldBounds.size.z / scaleZ);
-
-        playFieldSurfaceCollider.center = localCenter;
-        playFieldSurfaceCollider.size = localSize;
-        playFieldSurfaceCollider.isTrigger = false;
-    }
-
-    private void RebuildPlayFieldBoundaries()
-    {
-        if (!TryGetPlayFieldBounds(out Bounds bounds))
-        {
-            return;
-        }
-
-        if (boundaryRoot != null)
-        {
-            Destroy(boundaryRoot.gameObject);
-        }
-
-        boundaryRoot = new GameObject("PlayFieldBoundaries").transform;
-        boundaryRoot.SetParent(playFieldRoot, false);
-
-        float wallCenterY = bounds.max.y + boundaryWallHeight * 0.5f;
-        float innerWidth = Mathf.Max(0.1f, bounds.size.x - boundaryInset * 2f);
-        float innerDepth = Mathf.Max(0.1f, bounds.size.z - boundaryInset * 2f);
-
-        CreateBoundaryWall("NorthWall",
-            new Vector3(bounds.center.x, wallCenterY, bounds.max.z + boundaryWallThickness * 0.5f),
-            new Vector3(innerWidth, boundaryWallHeight, boundaryWallThickness));
-        CreateBoundaryWall("SouthWall",
-            new Vector3(bounds.center.x, wallCenterY, bounds.min.z - boundaryWallThickness * 0.5f),
-            new Vector3(innerWidth, boundaryWallHeight, boundaryWallThickness));
-        CreateBoundaryWall("EastWall",
-            new Vector3(bounds.max.x + boundaryWallThickness * 0.5f, wallCenterY, bounds.center.z),
-            new Vector3(boundaryWallThickness, boundaryWallHeight, innerDepth));
-        CreateBoundaryWall("WestWall",
-            new Vector3(bounds.min.x - boundaryWallThickness * 0.5f, wallCenterY, bounds.center.z),
-            new Vector3(boundaryWallThickness, boundaryWallHeight, innerDepth));
-    }
-
-    private void CreateBoundaryWall(string wallName, Vector3 worldPosition, Vector3 size)
-    {
-        GameObject wall = new GameObject(wallName);
-        wall.transform.SetParent(boundaryRoot, false);
-        wall.transform.position = worldPosition;
-
-        BoxCollider collider = wall.AddComponent<BoxCollider>();
-        collider.size = size;
-        collider.isTrigger = false;
-    }
-
     private bool TryGetPlayFieldBounds(out Bounds bounds)
     {
         bounds = default;
@@ -1165,6 +632,24 @@ public class MiniGameManager : MonoBehaviour
         }
 
         return TryCalculateBounds(playFieldRoot, out bounds);
+    }
+
+    private void ValidateInvisibleWalls()
+    {
+        if (invisibleWalls == null || invisibleWalls.Length < 4)
+        {
+            Debug.LogError("MiniGameManager requires at least 4 InvisibleWall collider references assigned from the scene.", this);
+            return;
+        }
+
+        for (int i = 0; i < invisibleWalls.Length; i++)
+        {
+            Collider wall = invisibleWalls[i];
+            if (wall == null || !wall.enabled || wall.isTrigger)
+            {
+                Debug.LogError($"MiniGameManager has an invalid InvisibleWall reference at index {i}.", this);
+            }
+        }
     }
 
     private bool TryCalculateBounds(Transform root, out Bounds bounds)
@@ -1230,11 +715,51 @@ public class MiniGameManager : MonoBehaviour
         return new Vector3(clampedX, bounds.max.y, clampedZ);
     }
 
-    public GameObject CreateArenaBallInstance(string objectName)
+    public ArenaProjectile ActivateArenaBallProjectile(string objectName, Vector3 position)
     {
         return ballService != null
-            ? ballService.CreateArenaBallInstance(objectName)
+            ? ballService.ActivateSceneProjectile(objectName, position)
             : null;
+    }
+
+    public void RecycleArenaBallProjectile(ArenaProjectile projectile)
+    {
+        ballService?.RecycleProjectile(projectile);
+    }
+
+    private static void EvaluateBallClaimant(
+        ArenaCombatant candidate,
+        Vector3 ballPosition,
+        float claimRadius,
+        ref ArenaCombatant bestCombatant,
+        ref float bestDistance)
+    {
+        if (candidate == null || candidate.HasBall || !candidate.gameObject.activeInHierarchy)
+        {
+            return;
+        }
+
+        float distance = Vector3.Distance(
+            Vector3.ProjectOnPlane(candidate.transform.position, Vector3.up),
+            Vector3.ProjectOnPlane(ballPosition, Vector3.up));
+
+        if (distance > claimRadius)
+        {
+            return;
+        }
+
+        if (bestCombatant == null || distance < bestDistance - 0.01f)
+        {
+            bestCombatant = candidate;
+            bestDistance = distance;
+            return;
+        }
+
+        if (Mathf.Abs(distance - bestDistance) <= 0.01f && candidate.IsPlayerControlled && !bestCombatant.IsPlayerControlled)
+        {
+            bestCombatant = candidate;
+            bestDistance = distance;
+        }
     }
 
 }

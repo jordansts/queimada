@@ -179,9 +179,9 @@ Pontos de atencao:
 
 Responsabilidade:
 
-- servico central da bola solta;
-- spawn, limpeza e registro da bola da arena;
-- criacao da representacao visual da bola.
+- servico central da bola da arena;
+- carrega os prefabs separados de pickup e projetil;
+- spawn, limpeza e registro da bola solta.
 
 ### `Assets/SourceFiles/Scripts/ArenaBallPickup.cs`
 
@@ -197,19 +197,13 @@ Responsabilidade:
 
 - comportamento do projetil arremessado;
 - acerto em combatants;
-- transicao de projetil para pickup no chao.
+- transicao de projetil para spawn de pickup ao assentar.
 
 ### `Assets/SourceFiles/Scripts/ArenaProjectileFactory.cs`
 
 Responsabilidade:
 
-- fabrica o projetil da bola com rigidbody, collider e material fisico.
-
-### `Assets/SourceFiles/Scripts/ArenaBallistics.cs`
-
-Responsabilidade:
-
-- utilitario de balistica/calculo relacionado aos arremessos.
+- instancia o prefab fisico do projetil da bola.
 
 ## Setup runtime
 

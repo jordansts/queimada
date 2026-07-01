@@ -33,14 +33,16 @@ public class ArenaBallPickup : MonoBehaviour
 
         if (attachedRigidbody != null)
         {
-            attachedRigidbody.useGravity = !useFloatingMotion;
-            attachedRigidbody.isKinematic = useFloatingMotion;
-
             if (useFloatingMotion)
             {
+                attachedRigidbody.isKinematic = false;
+                attachedRigidbody.useGravity = false;
                 attachedRigidbody.linearVelocity = Vector3.zero;
                 attachedRigidbody.angularVelocity = Vector3.zero;
             }
+
+            attachedRigidbody.useGravity = !useFloatingMotion;
+            attachedRigidbody.isKinematic = useFloatingMotion;
         }
     }
 
@@ -85,39 +87,9 @@ public class ArenaBallPickup : MonoBehaviour
 
     private void TryClaimNearbyCombatant()
     {
-        ArenaCombatant bestCombatant = null;
-        float bestDistance = float.MaxValue;
-
-        ArenaCombatant[] combatants = FindObjectsByType<ArenaCombatant>(FindObjectsInactive.Exclude);
-        foreach (ArenaCombatant combatant in combatants)
-        {
-            if (combatant == null || combatant.HasBall)
-            {
-                continue;
-            }
-
-            float distance = Vector3.Distance(
-                Vector3.ProjectOnPlane(combatant.transform.position, Vector3.up),
-                Vector3.ProjectOnPlane(transform.position, Vector3.up));
-
-            if (distance > claimRadius)
-            {
-                continue;
-            }
-
-            if (bestCombatant == null || distance < bestDistance - 0.01f)
-            {
-                bestCombatant = combatant;
-                bestDistance = distance;
-                continue;
-            }
-
-            if (Mathf.Abs(distance - bestDistance) <= 0.01f && combatant.IsPlayerControlled && !bestCombatant.IsPlayerControlled)
-            {
-                bestCombatant = combatant;
-                bestDistance = distance;
-            }
-        }
+        ArenaCombatant bestCombatant = MiniGameManager.Instance != null
+            ? MiniGameManager.Instance.FindBestBallClaimant(transform.position, claimRadius)
+            : null;
 
         if (bestCombatant == null)
         {

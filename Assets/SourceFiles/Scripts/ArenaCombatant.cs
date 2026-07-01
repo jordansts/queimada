@@ -15,6 +15,7 @@ public class ArenaCombatant : MonoBehaviour
     public Transform ThrowOrigin { get; private set; }
     public ArenaCombatant Opponent { get; private set; }
     public Collider[] Colliders { get; private set; }
+    public ThirdPersonController Controller => thirdPersonController;
     public bool HasBall { get; private set; }
     public float CurrentHealth { get; private set; }
     public float MaxHealth => maxHealth;
@@ -156,21 +157,5 @@ public class ArenaCombatant : MonoBehaviour
         }
 
         heldBallVisual.transform.localRotation = Quaternion.identity;
-        heldBallVisual.transform.localScale = GetHeldBallLocalScale();
-    }
-
-    private Vector3 GetHeldBallLocalScale()
-    {
-        float scale = MiniGameManager.Instance != null ? MiniGameManager.Instance.BallVisualScale : 0.42f;
-        if (HeldBallAnchor == null)
-        {
-            return Vector3.one * scale;
-        }
-
-        Vector3 parentScale = HeldBallAnchor.lossyScale;
-        float safeX = Mathf.Abs(parentScale.x) > 0.0001f ? parentScale.x : 1f;
-        float safeY = Mathf.Abs(parentScale.y) > 0.0001f ? parentScale.y : 1f;
-        float safeZ = Mathf.Abs(parentScale.z) > 0.0001f ? parentScale.z : 1f;
-        return new Vector3(scale / safeX, scale / safeY, scale / safeZ);
     }
 }

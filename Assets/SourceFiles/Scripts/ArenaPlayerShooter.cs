@@ -1,15 +1,14 @@
 using StarterAssets;
 using UnityEngine;
-#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
-#endif
 
 public class ArenaPlayerShooter : MonoBehaviour
 {
     private const float MinForwardAimDistance = 8f;
 
     [SerializeField] private float fireCooldown = 0.4f;
-    [SerializeField] private float projectileSpeed = 28f;
+    [SerializeField] private float projectileSpeed = 15.5f;
+    [SerializeField] private float throwLift = 4.2f;
     [SerializeField] private float damage = 28f;
     [SerializeField] private float knockbackForce = 140f;
     [SerializeField] private float aimRange = 120f;
@@ -58,11 +57,7 @@ public class ArenaPlayerShooter : MonoBehaviour
 
     private bool WasFirePressedThisFrame()
     {
-#if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
-#else
-        return Input.GetMouseButtonDown(0);
-#endif
     }
 
     private void Fire()
@@ -157,15 +152,32 @@ public class ArenaPlayerShooter : MonoBehaviour
         }
 
         spawnPosition += direction * 0.4f;
+        Vector3 launchVelocity = ResolveLaunchVelocity(spawnPosition, aimPoint, direction);
         owner.RemoveBall();
         ArenaProjectileFactory.CreateProjectile(
             "PlayerProjectile",
             owner,
             spawnPosition,
-            direction * projectileSpeed,
+            launchVelocity,
             damage,
-            knockbackForce,
-            false);
+            knockbackForce);
+    }
+
+    private Vector3 ResolveLaunchVelocity(Vector3 origin, Vector3 aimPoint, Vector3 fallbackDirection)
+    {
+        Vector3 planarOffset = Vector3.ProjectOnPlane(aimPoint - origin, Vector3.up);
+        Vector3 planarDirection = planarOffset.sqrMagnitude > 0.0001f
+            ? planarOffset.normalized
+            : Vector3.ProjectOnPlane(fallbackDirection, Vector3.up).normalized;
+        if (planarDirection.sqrMagnitude < 0.0001f)
+        {
+            planarDirection = transform.forward;
+        }
+
+        float planarDistance = planarOffset.magnitude;
+        float distanceFactor = Mathf.InverseLerp(MinForwardAimDistance, 22f, planarDistance);
+        float horizontalSpeed = Mathf.Lerp(projectileSpeed * 0.92f, projectileSpeed, distanceFactor);
+        return planarDirection * horizontalSpeed + Vector3.up * throwLift;
     }
 
     private Vector3 GetThrowOriginPosition()

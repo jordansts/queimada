@@ -1,36 +1,32 @@
 using UnityEngine;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public class ArenaBallService : MonoBehaviour
 {
-    private const string ArenaBallRuntimePrefabPath = "Arena/ArenaBallRuntime";
+    private const bool LooseBallUsesFloatingMotion = false;
+    private const bool LooseBallUsesTriggerCollider = false;
 
     public Transform CurrentLooseBallTransform => currentLooseBall != null ? currentLooseBall.transform : null;
-    public float VisualScale => visualScale;
+
+    [SerializeField] private ArenaBallPickup sceneLooseBall;
+    [SerializeField] private ArenaProjectile sceneProjectileBall;
 
     private ArenaBallPickup currentLooseBall;
-    private GameObject runtimeBallPrefab;
     private System.Func<Vector3, Vector3> groundResolver;
-    private float visualScale;
     private float visualRadius;
     private float bobbingAmount;
     private float groundClearance;
 
     public void Configure(
         System.Func<Vector3, Vector3> resolveGroundPosition,
-        float ballVisualScale,
         float ballVisualRadius,
         float ballBobbingAmount,
         float ballGroundClearance)
     {
         groundResolver = resolveGroundPosition;
-        visualScale = ballVisualScale;
         visualRadius = ballVisualRadius;
         bobbingAmount = ballBobbingAmount;
         groundClearance = ballGroundClearance;
-        CacheBallPrefab();
+        ValidateSceneReferences();
     }
 
     public void ClaimArenaBall(ArenaBallPickup pickup, ArenaCombatant combatant)
@@ -40,13 +36,19 @@ public class ArenaBallService : MonoBehaviour
             return;
         }
 
-        if (currentLooseBall == pickup)
+        if (pickup != sceneLooseBall)
+        {
+            Debug.LogError("ArenaBallService expected the scene loose ball instance only.", pickup);
+            return;
+        }
+
+        if (currentLooseBall == sceneLooseBall)
         {
             currentLooseBall = null;
         }
 
         combatant.GiveBall();
-        Destroy(pickup.gameObject);
+        ResetSceneLooseBall();
     }
 
     public void RegisterLooseArenaBall(ArenaBallPickup pickup)
@@ -56,44 +58,58 @@ public class ArenaBallService : MonoBehaviour
             return;
         }
 
-        if (currentLooseBall != null && currentLooseBall != pickup)
+        if (pickup != sceneLooseBall)
         {
-            Destroy(currentLooseBall.gameObject);
+            Debug.LogError("ArenaBallService expected the scene loose ball instance only.", pickup);
+            return;
         }
 
         currentLooseBall = pickup;
+    }
+
+    public void PrepareLooseArenaBall(
+        ArenaBallPickup pickup,
+        Vector3 position,
+        float pickupDelay,
+        bool useFloatingMotion,
+        bool useTriggerCollider)
+    {
+        if (pickup == null)
+        {
+            return;
+        }
+
+        Vector3 groundedPosition = ResolveGroundPosition(position);
+        float safeHeight = groundedPosition.y + visualRadius + groundClearance;
+        if (useFloatingMotion)
+        {
+            safeHeight += bobbingAmount;
+        }
+
+        Vector3 safePosition = new Vector3(groundedPosition.x, safeHeight, groundedPosition.z);
+        pickup.transform.position = safePosition;
+        pickup.enabled = true;
+        pickup.Initialize(safePosition, pickupDelay, useFloatingMotion, useTriggerCollider);
+        RegisterLooseArenaBall(pickup);
     }
 
     public void SpawnArenaBall(Vector3 position, float pickupDelay = 0f)
     {
         ClearLooseBall();
 
-        Vector3 groundedPosition = ResolveGroundPosition(position);
-        GameObject ballObject = CreateArenaBallInstance("ArenaBallPickup");
-        if (ballObject == null)
+        ArenaBallPickup looseBall = GetLooseBallInstance();
+        if (looseBall == null)
         {
             return;
         }
 
-        float safeBallHeight = groundedPosition.y + visualRadius + bobbingAmount + groundClearance;
-        Vector3 spawnPosition = new Vector3(groundedPosition.x, safeBallHeight, groundedPosition.z);
-        ballObject.transform.position = spawnPosition;
-
-        currentLooseBall = ballObject.GetComponent<ArenaBallPickup>();
-        if (currentLooseBall == null)
-        {
-            Debug.LogError("ArenaBallRuntime prefab is missing ArenaBallPickup.");
-            Destroy(ballObject);
-            return;
-        }
-
-        ArenaProjectile projectile = ballObject.GetComponent<ArenaProjectile>();
-        if (projectile != null)
-        {
-            projectile.enabled = false;
-        }
-
-        currentLooseBall.Initialize(spawnPosition, pickupDelay, true, true);
+        currentLooseBall = looseBall;
+        PrepareLooseArenaBall(
+            currentLooseBall,
+            position,
+            pickupDelay,
+            LooseBallUsesFloatingMotion,
+            LooseBallUsesTriggerCollider);
     }
 
     public void ClearLooseBall()
@@ -103,23 +119,45 @@ public class ArenaBallService : MonoBehaviour
             return;
         }
 
-        Destroy(currentLooseBall.gameObject);
+        if (currentLooseBall != sceneLooseBall)
+        {
+            Debug.LogError("ArenaBallService expected the scene loose ball instance only.", currentLooseBall);
+        }
+
+        ResetSceneLooseBall();
         currentLooseBall = null;
     }
 
-    public GameObject CreateArenaBallInstance(string objectName)
+    public ArenaProjectile ActivateSceneProjectile(string objectName, Vector3 position)
     {
-        CacheBallPrefab();
-        if (runtimeBallPrefab == null)
+        ValidateSceneReferences();
+        if (sceneProjectileBall == null)
         {
-            Debug.LogError("ArenaBallRuntime prefab could not be loaded. Run Tools/Arena/Rebuild Arena Ball Runtime Prefab.");
+            Debug.LogError("ArenaBallService could not find ArenaBallProjectile in the scene.");
             return null;
         }
 
-        GameObject ballObject = Instantiate(runtimeBallPrefab);
-        ballObject.name = objectName;
-        ballObject.transform.localScale = Vector3.one * visualScale;
-        return ballObject;
+        sceneProjectileBall.gameObject.name = objectName;
+        sceneProjectileBall.transform.SetPositionAndRotation(position, Quaternion.identity);
+        sceneProjectileBall.gameObject.SetActive(true);
+        sceneProjectileBall.enabled = true;
+        return sceneProjectileBall;
+    }
+
+    public void RecycleProjectile(ArenaProjectile projectile)
+    {
+        if (projectile == null)
+        {
+            return;
+        }
+
+        if (projectile != sceneProjectileBall)
+        {
+            Debug.LogError("ArenaBallService expected the scene projectile instance only.", projectile);
+            return;
+        }
+
+        ResetSceneProjectileBall();
     }
 
     private Vector3 ResolveGroundPosition(Vector3 desiredPosition)
@@ -127,20 +165,76 @@ public class ArenaBallService : MonoBehaviour
         return groundResolver != null ? groundResolver(desiredPosition) : desiredPosition;
     }
 
-    private void CacheBallPrefab()
+    private void ValidateSceneReferences()
     {
-        if (runtimeBallPrefab != null)
+        if (sceneLooseBall == null)
+        {
+            Debug.LogError("ArenaBallService requires an ArenaBallPickup object in the scene.");
+        }
+
+        if (sceneProjectileBall == null)
+        {
+            Debug.LogError("ArenaBallService requires an ArenaBallProjectile object in the scene.");
+        }
+    }
+
+    private ArenaBallPickup GetLooseBallInstance()
+    {
+        ValidateSceneReferences();
+        if (sceneLooseBall == null)
+        {
+            return null;
+        }
+
+        sceneLooseBall.gameObject.SetActive(true);
+        return sceneLooseBall;
+    }
+
+    private void ResetSceneLooseBall()
+    {
+        if (sceneLooseBall == null)
         {
             return;
         }
 
-        runtimeBallPrefab = Resources.Load<GameObject>(ArenaBallRuntimePrefabPath);
-#if UNITY_EDITOR
-        if (runtimeBallPrefab == null)
+        Rigidbody rigidbody = sceneLooseBall.GetComponent<Rigidbody>();
+        if (rigidbody != null)
         {
-            runtimeBallPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                "Assets/SourceFiles/Resources/Arena/ArenaBallRuntime.prefab");
+            rigidbody.isKinematic = false;
+            rigidbody.linearVelocity = Vector3.zero;
+            rigidbody.angularVelocity = Vector3.zero;
+            rigidbody.useGravity = false;
+            rigidbody.isKinematic = true;
         }
-#endif
+
+        sceneLooseBall.gameObject.SetActive(false);
+    }
+
+    private void ResetSceneProjectileBall()
+    {
+        if (sceneProjectileBall == null)
+        {
+            return;
+        }
+
+        Rigidbody rigidbody = sceneProjectileBall.GetComponent<Rigidbody>();
+        SphereCollider sphereCollider = sceneProjectileBall.GetComponent<SphereCollider>();
+        if (rigidbody != null)
+        {
+            rigidbody.isKinematic = false;
+            rigidbody.linearVelocity = Vector3.zero;
+            rigidbody.angularVelocity = Vector3.zero;
+            rigidbody.useGravity = false;
+            rigidbody.isKinematic = true;
+            rigidbody.detectCollisions = false;
+        }
+
+        if (sphereCollider != null)
+        {
+            sphereCollider.isTrigger = true;
+        }
+
+        sceneProjectileBall.enabled = false;
+        sceneProjectileBall.gameObject.SetActive(false);
     }
 }

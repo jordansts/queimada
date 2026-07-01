@@ -15,12 +15,12 @@ public class ArenaBotController : MonoBehaviour
     [SerializeField] private float moveSpeed = 4.8f;
     [SerializeField] private float rotationSpeed = 10f;
     [SerializeField] private float gravity = -18f;
-    [SerializeField] private float preferredRange = 8.5f;
     [SerializeField] private float retreatRange = 6.5f;
     [SerializeField] private float engageRange = 11f;
     [SerializeField] private float personalSpaceRange = 1.75f;
     [SerializeField] private float fireCooldown = 0.75f;
-    [SerializeField] private float projectileSpeed = 24f;
+    [SerializeField] private float projectileSpeed = 15f;
+    [SerializeField] private float throwLift = 4f;
     [SerializeField] private float damage = 22f;
     [SerializeField] private float knockbackForce = 120f;
     [SerializeField] private float orbitWeight = 1.15f;
@@ -378,13 +378,31 @@ public class ArenaBotController : MonoBehaviour
         }
 
         owner.RemoveBall();
+        Vector3 launchVelocity = ResolveLaunchVelocity(queuedSpawnPosition, queuedAimPoint, queuedDirection);
         ArenaProjectileFactory.CreateProjectile(
             "BotProjectile",
             owner,
             queuedSpawnPosition,
-            queuedDirection * projectileSpeed,
+            launchVelocity,
             damage,
             knockbackForce);
+    }
+
+    private Vector3 ResolveLaunchVelocity(Vector3 origin, Vector3 aimPoint, Vector3 fallbackDirection)
+    {
+        Vector3 planarOffset = Vector3.ProjectOnPlane(aimPoint - origin, Vector3.up);
+        Vector3 planarDirection = planarOffset.sqrMagnitude > 0.0001f
+            ? planarOffset.normalized
+            : Vector3.ProjectOnPlane(fallbackDirection, Vector3.up).normalized;
+        if (planarDirection.sqrMagnitude < 0.0001f)
+        {
+            planarDirection = transform.forward;
+        }
+
+        float planarDistance = planarOffset.magnitude;
+        float distanceFactor = Mathf.InverseLerp(6f, 20f, planarDistance);
+        float horizontalSpeed = Mathf.Lerp(projectileSpeed * 0.92f, projectileSpeed, distanceFactor);
+        return planarDirection * horizontalSpeed + Vector3.up * throwLift;
     }
 
     private void UpdateBallChase(ArenaCombatant target, Transform looseBall)

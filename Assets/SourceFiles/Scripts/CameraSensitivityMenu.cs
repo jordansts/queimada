@@ -1,25 +1,22 @@
 using StarterAssets;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.UI;
-#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.UI;
-#endif
+using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
 public class CameraSensitivityMenu : MonoBehaviour
 {
-    private const string MenuPrefabPath = "UI/CameraSensitivityMenuCanvas";
     private const string SensitivityPrefKey = "CameraLookSensitivity";
     private const string InvertYPrefKey = "CameraInvertY";
     private const float MinSensitivity = 0.5f;
     private const float MaxSensitivity = 6f;
 
+    [SerializeField] private CameraSensitivityMenuView menuView;
+
     private ThirdPersonController _controller;
     private StarterAssetsInputs _inputs;
     private GameObject _menuRoot;
-    private CameraSensitivityMenuView _menuView;
     private Slider _slider;
     private Text _valueLabel;
     private Toggle _invertYToggle;
@@ -27,19 +24,6 @@ public class CameraSensitivityMenu : MonoBehaviour
     private bool _previousCursorLocked = true;
     private bool _previousCursorInputForLook = true;
     private ThirdPersonController _appliedController;
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void Bootstrap()
-    {
-        if (FindAnyObjectByType<CameraSensitivityMenu>() != null)
-        {
-            return;
-        }
-
-        GameObject obj = new GameObject("CameraSensitivityMenu");
-        DontDestroyOnLoad(obj);
-        obj.AddComponent<CameraSensitivityMenu>();
-    }
 
     private void Awake()
     {
@@ -64,15 +48,9 @@ public class CameraSensitivityMenu : MonoBehaviour
 
     private void TryBindController()
     {
-        if (_controller == null)
-        {
-            _controller = FindAnyObjectByType<ThirdPersonController>();
-        }
-
-        if (_inputs == null)
-        {
-            _inputs = FindAnyObjectByType<StarterAssetsInputs>();
-        }
+        ArenaCombatant playerCombatant = MiniGameManager.Instance != null ? MiniGameManager.Instance.PlayerCombatant : null;
+        _controller = playerCombatant != null ? playerCombatant.Controller : null;
+        _inputs = _controller != null ? _controller.GetComponent<StarterAssetsInputs>() : null;
 
         if (_controller == null || _controller == _appliedController)
         {
@@ -87,17 +65,10 @@ public class CameraSensitivityMenu : MonoBehaviour
 
     private void HandleToggle()
     {
-#if ENABLE_INPUT_SYSTEM
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
             Toggle();
         }
-#else
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            Toggle();
-        }
-#endif
     }
 
     private void Toggle()
@@ -159,26 +130,27 @@ public class CameraSensitivityMenu : MonoBehaviour
     private void BuildMenuFromPrefab()
     {
         EnsureEventSystem();
-        GameObject prefab = Resources.Load<GameObject>(MenuPrefabPath);
-        if (prefab == null)
+        if (menuView != null)
         {
-            Debug.LogError($"CameraSensitivityMenu could not load menu prefab at Resources/{MenuPrefabPath}.", this);
+            _menuRoot = menuView.gameObject;
+            CacheViewReferences();
+            _menuRoot.SetActive(false);
             return;
         }
 
-        _menuRoot = Instantiate(prefab);
-        _menuRoot.name = prefab.name;
-        DontDestroyOnLoad(_menuRoot);
-        _menuView = _menuRoot.GetComponent<CameraSensitivityMenuView>();
-        if (_menuView == null)
+        Debug.LogError("CameraSensitivityMenu requires a CameraSensitivityMenuView reference from the scene.", this);
+    }
+
+    private void CacheViewReferences()
+    {
+        if (menuView == null)
         {
-            Debug.LogError("CameraSensitivityMenu prefab is missing CameraSensitivityMenuView.", _menuRoot);
             return;
         }
 
-        _slider = _menuView.SensitivitySlider;
-        _valueLabel = _menuView.ValueLabel;
-        _invertYToggle = _menuView.InvertYToggle;
+        _slider = menuView.SensitivitySlider;
+        _valueLabel = menuView.ValueLabel;
+        _invertYToggle = menuView.InvertYToggle;
 
         if (_slider != null)
         {
@@ -191,8 +163,6 @@ public class CameraSensitivityMenu : MonoBehaviour
         {
             _invertYToggle.onValueChanged.AddListener(OnInvertYChanged);
         }
-
-        _menuRoot.SetActive(false);
     }
 
     private void EnsureEventSystem()
@@ -202,13 +172,7 @@ public class CameraSensitivityMenu : MonoBehaviour
             return;
         }
 
-        GameObject eventSystemObject = new GameObject("EventSystem", typeof(EventSystem));
-#if ENABLE_INPUT_SYSTEM
-        eventSystemObject.AddComponent<InputSystemUIInputModule>();
-#else
-        eventSystemObject.AddComponent<StandaloneInputModule>();
-#endif
-        DontDestroyOnLoad(eventSystemObject);
+        Debug.LogError("CameraSensitivityMenu could not find an EventSystem in the scene. Configure it directly in the scene.", this);
     }
 
     private void OnSliderChanged(float value)

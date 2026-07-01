@@ -4,18 +4,22 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class ArenaProjectile : MonoBehaviour
 {
-    private const float LifetimeSeconds = 6f;
-    private const float SpawnOwnerCollisionIgnoreSeconds = 0.75f;
-    private const float GroundContactNormalThreshold = 0.45f;
+    [SerializeField] private float lifetimeSeconds = 8f;
+    [SerializeField] private float ownerCollisionIgnoreSeconds = 0.3f;
+    [SerializeField] private float pickupDelaySeconds = 0.35f;
+    [SerializeField] private float settleLinearSpeedThreshold = 1.15f;
+    [SerializeField] private float settleAngularSpeedThreshold = 5f;
+    [SerializeField] private float settleDelaySeconds = 0.18f;
 
     private ArenaCombatant owner;
     private float damage;
     private float knockbackForce;
     private float lifetime;
     private float ownerCollisionIgnoreTimer;
+    private float settleTimer;
     private bool resolved;
-    private bool hasBecomePickup;
-    private bool useGravityWhileThrown;
+    private bool hasTouchedWorld;
+    private bool hasAppliedDamage;
     private Rigidbody projectileRigidbody;
     private SphereCollider sphereCollider;
 
@@ -25,17 +29,18 @@ public class ArenaProjectile : MonoBehaviour
         sphereCollider = GetComponent<SphereCollider>();
     }
 
-    public void Initialize(ArenaCombatant owner, Vector3 initialVelocity, float damage, float knockbackForce, bool useGravityWhileThrown)
+    public void Initialize(ArenaCombatant owner, Vector3 initialVelocity, float damage, float knockbackForce)
     {
         enabled = true;
         resolved = false;
-        hasBecomePickup = false;
+        hasTouchedWorld = false;
+        hasAppliedDamage = false;
         this.owner = owner;
         this.damage = damage;
         this.knockbackForce = knockbackForce;
-        this.useGravityWhileThrown = useGravityWhileThrown;
-        lifetime = LifetimeSeconds;
-        ownerCollisionIgnoreTimer = useGravityWhileThrown ? SpawnOwnerCollisionIgnoreSeconds : float.PositiveInfinity;
+        lifetime = lifetimeSeconds;
+        ownerCollisionIgnoreTimer = ownerCollisionIgnoreSeconds;
+        settleTimer = 0f;
 
         if (projectileRigidbody == null)
         {
@@ -59,17 +64,13 @@ public class ArenaProjectile : MonoBehaviour
         }
 
         sphereCollider.isTrigger = false;
-        projectileRigidbody.useGravity = useGravityWhileThrown;
+        projectileRigidbody.useGravity = true;
         projectileRigidbody.isKinematic = false;
         projectileRigidbody.detectCollisions = true;
-        projectileRigidbody.linearDamping = useGravityWhileThrown ? 0.06f : 0f;
+        projectileRigidbody.linearDamping = 0.08f;
+        projectileRigidbody.angularDamping = 0.35f;
         projectileRigidbody.linearVelocity = initialVelocity;
-        projectileRigidbody.angularVelocity = Random.onUnitSphere * 12f;
-
-        if (initialVelocity.sqrMagnitude > 0.0001f)
-        {
-            transform.forward = initialVelocity.normalized;
-        }
+        projectileRigidbody.angularVelocity = Vector3.zero;
     }
 
     private void FixedUpdate()
@@ -79,29 +80,40 @@ public class ArenaProjectile : MonoBehaviour
             return;
         }
 
-        if (!hasBecomePickup)
+        lifetime -= Time.fixedDeltaTime;
+        if (lifetime <= 0f)
         {
-            lifetime -= Time.fixedDeltaTime;
-            if (lifetime <= 0f)
-            {
-                ResolveIntoPickup(transform.position);
-                return;
-            }
+            ResolveIntoPickup(transform.position);
+            return;
+        }
 
-            if (!float.IsPositiveInfinity(ownerCollisionIgnoreTimer))
+        if (!float.IsPositiveInfinity(ownerCollisionIgnoreTimer))
+        {
+            ownerCollisionIgnoreTimer -= Time.fixedDeltaTime;
+            if (ownerCollisionIgnoreTimer <= 0f)
             {
-                ownerCollisionIgnoreTimer -= Time.fixedDeltaTime;
-                if (ownerCollisionIgnoreTimer <= 0f)
-                {
-                    RestoreOwnerCollision();
-                }
+                RestoreOwnerCollision();
             }
         }
 
-        Vector3 velocity = projectileRigidbody.linearVelocity;
-        if (velocity.sqrMagnitude > 0.04f)
+        if (!hasTouchedWorld)
         {
-            transform.forward = velocity.normalized;
+            return;
+        }
+
+        float linearSpeed = projectileRigidbody.linearVelocity.magnitude;
+        float angularSpeed = projectileRigidbody.angularVelocity.magnitude;
+        bool isSettled = linearSpeed <= settleLinearSpeedThreshold && angularSpeed <= settleAngularSpeedThreshold;
+        if (!isSettled)
+        {
+            settleTimer = 0f;
+            return;
+        }
+
+        settleTimer += Time.fixedDeltaTime;
+        if (settleTimer >= settleDelaySeconds || projectileRigidbody.IsSleeping())
+        {
+            ResolveIntoPickup(transform.position, pickupDelaySeconds);
         }
     }
 
@@ -113,8 +125,9 @@ public class ArenaProjectile : MonoBehaviour
         }
 
         ArenaCombatant target = collision.collider.GetComponentInParent<ArenaCombatant>();
-        if (target != null && target != owner)
+        if (!hasAppliedDamage && target != null && target != owner)
         {
+            hasAppliedDamage = true;
             Vector3 velocity = projectileRigidbody != null ? projectileRigidbody.linearVelocity : transform.forward;
             Vector3 horizontalDirection = Vector3.ProjectOnPlane(velocity, Vector3.up).normalized;
             if (horizontalDirection.sqrMagnitude < 0.0001f && owner != null)
@@ -134,15 +147,8 @@ public class ArenaProjectile : MonoBehaviour
             return;
         }
 
-        for (int i = 0; i < collision.contactCount; i++)
-        {
-            ContactPoint contact = collision.GetContact(i);
-            if (contact.normal.y >= GroundContactNormalThreshold)
-            {
-                BecomePickup(contact.point + contact.normal * 0.12f);
-                return;
-            }
-        }
+        hasTouchedWorld = true;
+        settleTimer = 0f;
     }
 
     private void RestoreOwnerCollision()
@@ -163,7 +169,7 @@ public class ArenaProjectile : MonoBehaviour
         ownerCollisionIgnoreTimer = float.MinValue;
     }
 
-    private void ResolveIntoPickup(Vector3 position, float pickupDelay = 0.45f)
+    private void ResolveIntoPickup(Vector3 position, float pickupDelay = -1f)
     {
         if (resolved)
         {
@@ -171,39 +177,16 @@ public class ArenaProjectile : MonoBehaviour
         }
 
         resolved = true;
-        MiniGameManager.Instance?.SpawnArenaBall(position, pickupDelay);
-        Destroy(gameObject);
-    }
-
-    private void BecomePickup(Vector3 position)
-    {
-        if (resolved || hasBecomePickup)
-        {
-            return;
-        }
-
-        hasBecomePickup = true;
-        ownerCollisionIgnoreTimer = float.MinValue;
         RestoreOwnerCollision();
-        useGravityWhileThrown = true;
-        if (projectileRigidbody != null)
-        {
-            projectileRigidbody.useGravity = true;
-            projectileRigidbody.linearDamping = 0.06f;
-        }
 
-        ArenaBallPickup pickup = GetComponent<ArenaBallPickup>();
-        if (pickup == null)
-        {
-            Debug.LogError("ArenaBallRuntime prefab is missing ArenaBallPickup.");
-            ResolveIntoPickup(position, 0f);
-            return;
-        }
-
-        pickup.enabled = true;
-        pickup.Initialize(position, 0f, false, false);
+        projectileRigidbody.isKinematic = false;
+        projectileRigidbody.linearVelocity = Vector3.zero;
+        projectileRigidbody.angularVelocity = Vector3.zero;
+        projectileRigidbody.useGravity = false;
+        projectileRigidbody.isKinematic = true;
+        sphereCollider.isTrigger = true;
         enabled = false;
-        MiniGameManager.Instance?.RegisterLooseArenaBall(pickup);
+        MiniGameManager.Instance?.SpawnArenaBall(position, pickupDelay >= 0f ? pickupDelay : pickupDelaySeconds);
+        MiniGameManager.Instance?.RecycleArenaBallProjectile(this);
     }
-
 }

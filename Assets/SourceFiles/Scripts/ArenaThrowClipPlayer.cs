@@ -17,7 +17,7 @@ public class ArenaThrowClipPlayer : MonoBehaviour
     private bool isThrowing;
     private float throwTimer;
 
-    public void Initialize(Transform actorRoot)
+    public void Initialize()
     {
         if (animator == null)
         {

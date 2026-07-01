@@ -1,7 +1,5 @@
 using UnityEngine;
-#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
-#endif
 
 namespace StarterAssets
 {
@@ -24,7 +22,6 @@ namespace StarterAssets
 		private bool _rollPressedThisFrame;
 		private bool _previousRollPressed;
 
-#if ENABLE_INPUT_SYSTEM
 		public void OnMove(InputValue value)
 		{
 			MoveInput(value.Get<Vector2>());
@@ -52,8 +49,6 @@ namespace StarterAssets
 			SprintInput(value.isPressed);
 		}
 
-#endif
-
 	private void Awake()
 	{
 		ApplyCursorState();
@@ -61,7 +56,6 @@ namespace StarterAssets
 
 		private void Update()
 		{
-#if ENABLE_INPUT_SYSTEM
 			block = Mouse.current != null && Mouse.current.rightButton.isPressed;
 
 			bool rollPressed = Keyboard.current != null &&
@@ -72,27 +66,6 @@ namespace StarterAssets
 			}
 
 			_previousRollPressed = rollPressed;
-#else
-			move = new Vector2(
-				(Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) -
-				(Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f),
-				(Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) -
-				(Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow) ? 1f : 0f));
-			move = Vector2.ClampMagnitude(move, 1f);
-			look = new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
-			sprint = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-			jump = Input.GetKey(KeyCode.Space);
-			block = Input.GetMouseButton(1);
-			if (Input.GetKeyDown(KeyCode.Space))
-			{
-				_jumpPressedThisFrame = true;
-			}
-
-			if (Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.RightControl))
-			{
-				_rollPressedThisFrame = true;
-			}
-#endif
 		}
 
 		public void MoveInput(Vector2 newMoveDirection)
